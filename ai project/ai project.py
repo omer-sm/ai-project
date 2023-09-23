@@ -140,7 +140,7 @@ class vector:
             retVals.append( 1 if self[i] >= other else 0)
         return vector(self.size, self.isCol, initVals = retVals)
 
-
+#test
 
 #j and training
 def calcJ(X, Y, W, b):
