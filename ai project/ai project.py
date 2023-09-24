@@ -2,7 +2,16 @@ import numpy as np
 from matplotlib import pyplot as plt
 from numpy.core import machar
 from unit10 import b_utils
+import time
 import random as rnd
+
+def main():
+    X, Y = b_utils.load_dataB1W4_trainN()
+    np.random.seed(1)
+    dW, db, J = calcJ_np_v1(X,Y,np.random.randn(len(X),1),3)
+    print(J)
+    print(dW.shape)
+    print(db)
 
 #vectors
 class vector:
@@ -31,9 +40,9 @@ class vector:
 
     def dot(self, other):
         if self.size != other.size:
-            raise Exception("vectors must be the same size for dot.")
+            raise Exception("vectors must be the same size for dot product.")
         if self.isCol or (not other.isCol):
-            raise Exception("vectors need to be a row and a column (respectively) for dot.")
+            raise Exception("vectors need to be a row and a column (respectively) for dot product.")
         ret = 0
         tempVector = self * other.transpose()
         for i in tempVector:
@@ -140,9 +149,23 @@ class vector:
             retVals.append( 1 if self[i] >= other else 0)
         return vector(self.size, self.isCol, initVals = retVals)
 
-#test
-
 #j and training
+def calcJ_np_v1(X, Y, W, b):
+    m = len(X[0])
+    n = len(W)
+    dw = np.zeros((n, 1))
+    J = 0
+    db = 0
+    for i in range(m):
+        yHat = b
+        Xi = X[:,i].reshape(len(W),1)
+        yHat += Xi.T@W
+        diff = (float)(yHat - Y[i])
+        J += (diff**2)/m
+        dw += (2*diff/m)*Xi
+        db += 2 * diff/m
+    return dw, db, J
+
 def calcJ(X, Y, W, b):
     m = len(X[0])
     n = len(W)
@@ -163,6 +186,7 @@ def calcJ(X, Y, W, b):
 def initFunc():
     xVals, yVals = b_utils.load_dataB1W4_trainN()
     weights = []
+    
     b = rnd.randint(-100, 100)
     for i in xVals:
         weights.append(rnd.randint(-100, 100))
@@ -204,3 +228,8 @@ def trainAdaptive(iterations):
             plt.pause(0.1)
             plt.clf()
             plt.plot(range(len(jVals)), jVals)
+
+
+
+
+main()
