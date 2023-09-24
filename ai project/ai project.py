@@ -7,11 +7,12 @@ import random as rnd
 
 def main():
     X, Y = b_utils.load_dataB1W4_trainN()
-    np.random.seed(1)
-    dW, db, J = calcJ_np_v1(X,Y,np.random.randn(len(X),1),3)
-    print(J)
-    print(dW.shape)
-    print(db)
+    costs, W, b = train_n_adaptive(X, Y, 0.001, 1000000, calc_J_np_v2, True)
+    print("J: ", costs[-1])
+    print ("Weights: ", W)
+    print("B: ", b)
+    
+
 
 #vectors
 class vector:
@@ -150,7 +151,18 @@ class vector:
         return vector(self.size, self.isCol, initVals = retVals)
 
 #j and training
-def calcJ_np_v1(X, Y, W, b):
+def calc_J_np_v2(X, Y, W, b):
+    m, n = len(Y), len(W)
+    dw = np.zeros((n, 1))
+    J, db = 0, 0
+    yHat = W.T@X+b
+    diff = (yHat - Y)
+    J = np.sum((diff**2)/m)
+    dw = np.sum(2*X*diff, axis=1, keepdims=True)/m
+    db = np.sum(2 * diff)/m
+    return J, dw, db
+
+def calc_J_np_v1(X, Y, W, b):
     m = len(X[0])
     n = len(W)
     dw = np.zeros((n, 1))
@@ -192,6 +204,30 @@ def initFunc():
         weights.append(rnd.randint(-100, 100))
     return xVals, yVals, b, weights
 
+def train_n_adaptive(X, Y, alpha, num_iterations, calc_J, plot_mid_train = False):
+    if plot_mid_train:
+        plt.ion()
+        plt.show()
+    m, n = len(Y), len(X)
+    costs, b = [], 0
+    W = np.zeros((n, 1))
+    alpha_W = np.full((n, 1), alpha)
+    alpha_b = alpha
+    for i in range(1, num_iterations+1):
+        cost, dW, db = calc_J(X, Y, W, b)
+        alpha_W *= np.where(alpha_W * dW > 0, 1.1, -0.5)
+        alpha_b *= 1.1 if db * alpha_b > 0 else -0.5
+        W -= alpha_W
+        b -= alpha_b
+        if i%(num_iterations//50)==0:
+            costs.append(cost)
+            if plot_mid_train:
+                plt.pause(0.0001)
+                plt.clf()
+                plt.plot(range(len(costs)), costs)
+    return costs, W, b
+    
+
 def trainUnadaptive(iterations):
     xVals, yVals, b, weights = initFunc()
     learningRate = 0.1**13
@@ -229,6 +265,26 @@ def trainAdaptive(iterations):
             plt.clf()
             plt.plot(range(len(jVals)), jVals)
 
+def trainAdaptive(xVals, yVals, learningRate, iterations):
+    arr, arr2, b, weights = initFunc()
+    jVals = []
+    learningRates = [learningRate] * (len(weights)+1)
+    for iter in range(iterations):
+        dw, db, j = calcJ(xVals, yVals, weights, b)
+        for w in range(len(weights)): 
+            learningRates[w] *= 1.1 if learningRates[w] * dw[w] > 0 else -0.5
+            weights[w] -= learningRates[w] 
+        learningRates[-1] *= 1.1 if learningRates[-1] * db > 0 else -0.5
+        b -= learningRates[-1]
+        if iter%(iterations/100) == 0 and iter > 0:
+            print("weights:", [np.round(w, 2) for w in weights])
+            print("b: ", b)
+            print("j: ", j)
+            jVals.append(j)
+            plt.pause(0.1)
+            plt.clf()
+            plt.plot(range(len(jVals)), jVals)
+    return jVals, weights, b
 
 
 
