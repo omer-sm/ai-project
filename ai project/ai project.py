@@ -7,10 +7,11 @@ import random as rnd
 
 def main():
     X, Y = b_utils.load_dataB1W4_trainN()
-    costs, W, b = train_n_adaptive(X, Y, 0.001, 1000000, calc_J_np_v2, True)
+    costs, W, b = train_n_adaptive(X, Y, 0.001, 10000000, calc_J_np_v2, True)
     print("J: ", costs[-1])
     print ("Weights: ", W)
     print("B: ", b)
+    plt.pause(100000)
     
 
 
@@ -288,4 +289,4 @@ def trainAdaptive(xVals, yVals, learningRate, iterations):
 
 
 
-main()
+#main()
