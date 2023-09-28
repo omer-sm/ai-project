@@ -21,13 +21,17 @@ def main():
     test_set_y = test_set_y.reshape(test_set_y.shape[0], -1)
     train_set_x = train_set_x_flatten/255.0
     test_set_x = test_set_x_flatten/255.0
-    X, Y = np.array([[1.,2.,-1.],[3.,4.,-3.2]]), np.array([1,0,1])
+    W, b = train_logical_unadaptive(train_set_x, train_set_y, num_iterations=10000,learning_rate=0.000001, plot_mid_train=True)
 
-    W, b = train_logical_adaptive(X, Y, 1000, 0.001, True)
+    Y_prediction_test = predict(test_set_x, W, b)
 
-    print ("W = " + str(W))
+    Y_prediction_train = predict(train_set_x, W, b)
 
-    print ("b = " + str(b))
+    # Print train/test Errors
+
+    print("train accuracy: {} %".format(100 -np.mean(np.abs(Y_prediction_train - train_set_y)) * 100))
+
+    print("test accuracy: {} %".format(100 -np.mean(np.abs(Y_prediction_test - test_set_y)) * 100))
 
 #vectors
 class vector:
@@ -166,6 +170,11 @@ class vector:
         return vector(self.size, self.isCol, initVals = retVals)
 
 #logical regression
+def predict(X, W, b):
+    Z = np.dot(X.T, W)+b
+    A = sigmoid(Z).T
+    return np.where(A > 0.5, 1, 0)
+
 def sigmoid(z):
     return 1/(1+np.exp(-z)) 
 
@@ -181,7 +190,7 @@ def forward_propagation(X, Y, w, b):
     return A, J
 
 def backward_propagation(X, Y, A):
-    dZ = (A-Y)/len(Y)
+    dZ = (A-Y.T)/len(Y)
     dW = np.dot(X, dZ.T)
     db = np.sum(dZ)
     return dW, db
@@ -198,6 +207,7 @@ def train_logical_unadaptive(X, Y, num_iterations, learning_rate, plot_mid_train
         w -= dW * learning_rate
         b -= db * learning_rate
         costs.append(J)
+        print(i, J)
         if i%(num_iterations//50)==0:
             costs.append(J)
             if plot_mid_train:
