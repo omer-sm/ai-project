@@ -2,18 +2,32 @@ import numpy as np
 from matplotlib import pyplot as plt
 from numpy.core import machar
 from unit10 import b_utils
+from unit10 import c1w2_utils as c1w2
+import scipy
+from scipy import ndimage
+from PIL import Image
+import h5py
 import time
 import random as rnd
 
 def main():
-    X, Y = b_utils.load_dataB1W4_trainN()
-    costs, W, b = train_n_adaptive(X, Y, 0.001, 10000000, calc_J_np_v2, True)
-    print("J: ", costs[-1])
-    print ("Weights: ", W)
-    print("B: ", b)
-    plt.pause(100000)
-    
+    train_set_x_orig, train_set_y, test_set_x_orig, test_set_y, classes = c1w2.load_datasetC1W2()
+    m_train = len(train_set_y)
+    m_test = len(test_set_y)
+    num_px = len(train_set_x_orig[0])
+    train_set_x_flatten = (train_set_x_orig.reshape(train_set_x_orig.shape[0], -1)).T
+    test_set_x_flatten = (test_set_x_orig.reshape(test_set_x_orig.shape[0], -1)).T
+    train_set_y = train_set_y.reshape(train_set_y.shape[0], -1)
+    test_set_y = test_set_y.reshape(test_set_y.shape[0], -1)
+    train_set_x = train_set_x_flatten/255.0
+    test_set_x = test_set_x_flatten/255.0
+    X, Y = np.array([[1.,2.,-1.],[3.,4.,-3.2]]), np.array([1,0,1])
 
+    W, b = train_logical_adaptive(X, Y, 1000, 0.001, True)
+
+    print ("W = " + str(W))
+
+    print ("b = " + str(b))
 
 #vectors
 class vector:
@@ -150,6 +164,75 @@ class vector:
         for i in range(self.size):
             retVals.append( 1 if self[i] >= other else 0)
         return vector(self.size, self.isCol, initVals = retVals)
+
+#logical regression
+def sigmoid(z):
+    return 1/(1+np.exp(-z)) 
+
+def initialize_with_zeros(dim):
+    return np.zeros((dim, 1)), 0.01
+
+def forward_propagation(X, Y, w, b):
+    Z = np.dot(X.T, w)+b
+    A = sigmoid(Z).T
+    #L = Y*np.log(A) + (1-Y)*np.log(1-A)
+    L = np.log(np.abs(np.bitwise_xor(Y, 1)-A))
+    J = -np.average(L)
+    return A, J
+
+def backward_propagation(X, Y, A):
+    dZ = (A-Y)/len(Y)
+    dW = np.dot(X, dZ.T)
+    db = np.sum(dZ)
+    return dW, db
+
+def train_logical_unadaptive(X, Y, num_iterations, learning_rate, plot_mid_train = False):
+    w, b = initialize_with_zeros(len(X))
+    costs = []
+    if plot_mid_train:
+        plt.ion()
+        plt.show()
+    for i in range(num_iterations):
+        A, J = forward_propagation(X, Y, w, b)
+        dW, db = backward_propagation(X, Y, A)
+        w -= dW * learning_rate
+        b -= db * learning_rate
+        costs.append(J)
+        if i%(num_iterations//50)==0:
+            costs.append(J)
+            if plot_mid_train:
+                plt.pause(0.0001)
+                plt.clf()
+                plt.plot(range(len(costs)), costs)
+    if plot_mid_train:
+        plt.pause(10)
+    return w, b
+
+def train_logical_adaptive(X, Y, num_iterations, alpha, plot_mid_train = False):
+    w, b = initialize_with_zeros(len(X))
+    alpha_W = np.full((len(w), 1), alpha)
+    alpha_b = alpha
+    costs = []
+    if plot_mid_train:
+        plt.ion()
+        plt.show()
+    for i in range(num_iterations):
+        A, J = forward_propagation(X, Y, w, b)
+        dW, db = backward_propagation(X, Y, A)
+        alpha_W *= np.where(alpha_W * dW > 0, 1.1, -0.5)
+        alpha_b *= 1.1 if db * alpha_b > 0 else -0.5
+        w -= alpha_W
+        b -= alpha_b
+        costs.append(J)
+        if i%(num_iterations//50)==0:
+            costs.append(J)
+            if plot_mid_train:
+                plt.pause(0.0001)
+                plt.clf()
+                plt.plot(range(len(costs)), costs)
+    if plot_mid_train:
+        plt.pause(10)
+    return w, b
 
 #j and training
 def calc_J_np_v2(X, Y, W, b):
@@ -289,4 +372,4 @@ def trainAdaptive(xVals, yVals, learningRate, iterations):
 
 
 
-#main()
+main()
