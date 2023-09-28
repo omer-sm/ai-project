@@ -10,6 +10,23 @@ import h5py
 import time
 import random as rnd
 
+def main2():
+    X, Y = np.array([[1.,2.,-1.],[3.,4.,-3.2]]), np.array([1,0,1])
+
+    W, b = train_logical_unadaptive(X, Y, 50000, 0.009, True)
+
+    print ("W = " + str(W))
+
+    print ("b = " + str(b))
+
+def main1():
+    x = np.array([[1,4], [2,2], [5, 8], [3, 4], [3, 9], [15, 2]])
+    y = np.array([1, 1, 0, 0, 0, 0])
+    x = x.reshape(x.shape[0], -1).T
+    y = y.reshape(y.shape[0], -1)
+    print(x.shape, y.shape)
+    train_logical_unadaptive(x, y, 4000, 0.00001, True)
+
 def main():
     train_set_x_orig, train_set_y, test_set_x_orig, test_set_y, classes = c1w2.load_datasetC1W2()
     m_train = len(train_set_y)
@@ -21,13 +38,13 @@ def main():
     test_set_y = test_set_y.reshape(test_set_y.shape[0], -1)
     train_set_x = train_set_x_flatten/255.0
     test_set_x = test_set_x_flatten/255.0
-    W, b = train_logical_unadaptive(train_set_x, train_set_y, num_iterations=10000,learning_rate=0.000001, plot_mid_train=True)
+    W, b = train_logical_unadaptive(train_set_x, train_set_y, 4000, 0.0005, True)
 
     Y_prediction_test = predict(test_set_x, W, b)
 
     Y_prediction_train = predict(train_set_x, W, b)
 
-    # Print train/test Errors
+    #Print train/test Errors
 
     print("train accuracy: {} %".format(100 -np.mean(np.abs(Y_prediction_train - train_set_y)) * 100))
 
@@ -176,7 +193,13 @@ def predict(X, W, b):
     return np.where(A > 0.5, 1, 0)
 
 def sigmoid(z):
-    return 1/(1+np.exp(-z)) 
+    temp = 1/(1+np.exp(-z)) 
+    for t in range(len(temp)):
+        if (temp[t] == 0):
+            temp[t] = 0.000001
+        elif (temp[t] == 1):
+            temp[t] = 0.999999
+    return temp
 
 def initialize_with_zeros(dim):
     return np.zeros((dim, 1)), 0.01
@@ -218,22 +241,23 @@ def train_logical_unadaptive(X, Y, num_iterations, learning_rate, plot_mid_train
         plt.pause(10)
     return w, b
 
-def train_logical_adaptive(X, Y, num_iterations, alpha, plot_mid_train = False):
+def train_logical_adaptive(X, Y, num_iterations, learning_rate, plot_mid_train = False):
     w, b = initialize_with_zeros(len(X))
-    alpha_W = np.full((len(w), 1), alpha)
-    alpha_b = alpha
     costs = []
+    learning_rate_W = np.full((len(w), 1), learning_rate)
+    learning_rate_b = learning_rate
     if plot_mid_train:
         plt.ion()
         plt.show()
     for i in range(num_iterations):
         A, J = forward_propagation(X, Y, w, b)
         dW, db = backward_propagation(X, Y, A)
-        alpha_W *= np.where(alpha_W * dW > 0, 1.1, -0.5)
-        alpha_b *= 1.1 if db * alpha_b > 0 else -0.5
-        w -= alpha_W
-        b -= alpha_b
+        learning_rate_W *= np.where(learning_rate_W * dW > 0, 1.1, -0.5)
+        learning_rate_b *= 1.1 if db * learning_rate_b > 0 else -0.5
+        w -= learning_rate_W
+        b -= learning_rate_b
         costs.append(J)
+        print(i, J)
         if i%(num_iterations//50)==0:
             costs.append(J)
             if plot_mid_train:
