@@ -1,13 +1,12 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from numpy.core import machar
 from unit10 import b_utils
 from unit10 import c1w2_utils as c1w2
 import scipy
 from scipy import ndimage
+from scipy.ndimage import zoom
 from PIL import Image
 import h5py
-import time
 import random as rnd
 
 def main2():
@@ -40,17 +39,8 @@ def main():
     test_set_x_flatten = (test_set_x_orig.reshape(test_set_x_orig.shape[0], -1)).T
     train_set_x = train_set_x_flatten/255.0
     test_set_x = test_set_x_flatten/255.0
-    W, b = train_logical_adaptive(train_set_x, train_set_y, 40000, 0.005, True)
-
-    Y_prediction_test = predict(test_set_x, W, b)
-
-    Y_prediction_train = predict(train_set_x, W, b)
-
-    #Print train/test Errors
-
-    print("train accuracy: {} %".format(100 -np.mean(np.abs(Y_prediction_train - train_set_y)) * 100))
-
-    print("test accuracy: {} %".format(100 -np.mean(np.abs(Y_prediction_test - test_set_y)) * 100))
+    W, b = train_logical_adaptive(train_set_x, train_set_y, 3000, 0.005)
+    predictImage(W, b, r"C:\Users\omerg\Favorites\Downloads\Gym-structure-1080x675.png")
 
 #vectors
 class vector:
@@ -192,7 +182,19 @@ class vector:
 def predict(X, W, b):
     Z = np.dot(X.T, W)+b
     A = sigmoid(Z).T
+    print(A)
     return np.where(A > 0.5, 1, 0)
+
+def predictImage(W, b, path):
+    img = Image.open(path)
+    img = img.convert('RGB')
+    img = img.resize((64, 64), Image.LANCZOS)
+    my_image = np.array(img).reshape(1, -1).T
+    my_predicted_image = predict(my_image, W, b)
+    print(my_predicted_image)
+
+
+
 
 def sigmoid(z):
     temp = 1/(1+np.exp(-z)) 
@@ -232,9 +234,9 @@ def train_logical_unadaptive(X, Y, num_iterations, learning_rate, plot_mid_train
         w -= dW * learning_rate
         b -= db * learning_rate
         costs.append(J)
-        print(i, J)
         if i%(num_iterations//50)==0:
             costs.append(J)
+            print("Iteration: ", i, " cost: ", J)
             if plot_mid_train:
                 plt.pause(0.0001)
                 plt.clf()
@@ -259,8 +261,8 @@ def train_logical_adaptive(X, Y, num_iterations, learning_rate, plot_mid_train =
         w -= learning_rate_W
         b -= learning_rate_b
         costs.append(J)
-        print(i, J)
         if i%(num_iterations//50)==0:
+            print("Iteration: ", i, " cost: ", J)
             costs.append(J)
             if plot_mid_train:
                 plt.pause(0.0001)
