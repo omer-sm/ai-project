@@ -1,19 +1,25 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from numpy.core import machar
 from unit10 import b_utils
-import time
+from unit10 import c1w2_utils as c1w2
+import scipy
+from scipy import ndimage
+from scipy.ndimage import zoom
+from PIL import Image
+import h5py
 import random as rnd
 
 def main():
-    X, Y = b_utils.load_dataB1W4_trainN()
-    costs, W, b = train_n_adaptive(X, Y, 0.001, 10000000, calc_J_np_v2, True)
-    print("J: ", costs[-1])
-    print ("Weights: ", W)
-    print("B: ", b)
-    plt.pause(100000)
-    
-
+    train_set_x_orig, train_set_y, test_set_x_orig, test_set_y, classes = c1w2.load_datasetC1W2()
+    m_train = len(train_set_y)
+    m_test = len(test_set_y)
+    num_px = len(train_set_x_orig[0])
+    train_set_x_flatten = (train_set_x_orig.reshape(train_set_x_orig.shape[0], -1)).T
+    test_set_x_flatten = (test_set_x_orig.reshape(test_set_x_orig.shape[0], -1)).T
+    train_set_x = train_set_x_flatten/255.0
+    test_set_x = test_set_x_flatten/255.0
+    W, b = train_logical_adaptive(train_set_x, train_set_y, 3000, 0.005)
+    predictImage(W, b, r"C:\Users\omerg\Favorites\Downloads\Gym-structure-1080x675.png")
 
 #vectors
 class vector:
@@ -151,7 +157,101 @@ class vector:
             retVals.append( 1 if self[i] >= other else 0)
         return vector(self.size, self.isCol, initVals = retVals)
 
-#j and training
+#logical regression
+def predict(X, W, b):
+    Z = np.dot(X.T, W)+b
+    A = sigmoid(Z).T
+    print(A)
+    return np.where(A > 0.5, 1, 0)
+
+def predictImage(W, b, path):
+    img = Image.open(path)
+    img = img.convert('RGB')
+    img = img.resize((64, 64), Image.LANCZOS)
+    my_image = np.array(img).reshape(1, -1).T
+    my_predicted_image = predict(my_image, W, b)
+    print(my_predicted_image)
+
+
+
+
+def sigmoid(z):
+    temp = 1/(1+np.exp(-z)) 
+    for t in range(len(temp)):
+        if (temp[t] == 0):
+            temp[t] = 0.000001
+        elif (temp[t] == 1):
+            temp[t] = 0.999999
+    return temp
+
+def initialize_with_zeros(dim):
+    return np.zeros((dim, 1)), 0.01
+
+def forward_propagation(X, Y, w, b):
+    Z = np.dot(X.T, w)+b
+    A = sigmoid(Z).T
+    #L = Y*np.log(A) + (1-Y)*np.log(1-A)
+    L = np.log(np.abs(np.bitwise_xor(Y, 1)-A))
+    J = -np.average(L)
+    return A, J
+
+def backward_propagation(X, Y, A):
+    dZ = (A-Y.T)/len(Y)
+    dW = np.dot(X, dZ.T)
+    db = np.sum(dZ)
+    return dW, db
+
+def train_logical_unadaptive(X, Y, num_iterations, learning_rate, plot_mid_train = False):
+    w, b = initialize_with_zeros(len(X))
+    costs = []
+    if plot_mid_train:
+        plt.ion()
+        plt.show()
+    for i in range(num_iterations):
+        A, J = forward_propagation(X, Y, w, b)
+        dW, db = backward_propagation(X, Y, A)
+        w -= dW * learning_rate
+        b -= db * learning_rate
+        costs.append(J)
+        if i%(num_iterations//50)==0:
+            costs.append(J)
+            print("Iteration: ", i, " cost: ", J)
+            if plot_mid_train:
+                plt.pause(0.0001)
+                plt.clf()
+                plt.plot(range(len(costs)), costs)
+    if plot_mid_train:
+        plt.pause(5)
+    return w, b
+
+def train_logical_adaptive(X, Y, num_iterations, learning_rate, plot_mid_train = False):
+    w, b = initialize_with_zeros(len(X))
+    costs = []
+    learning_rate_W = np.full((len(w), 1), learning_rate)
+    learning_rate_b = learning_rate
+    if plot_mid_train:
+        plt.ion()
+        plt.show()
+    for i in range(num_iterations):
+        A, J = forward_propagation(X, Y, w, b)
+        dW, db = backward_propagation(X, Y, A)
+        learning_rate_W *= np.where(learning_rate_W * dW > 0, 1.1, -0.5)
+        learning_rate_b *= 1.1 if db * learning_rate_b > 0 else -0.5
+        w -= learning_rate_W
+        b -= learning_rate_b
+        costs.append(J)
+        if i%(num_iterations//50)==0:
+            print("Iteration: ", i, " cost: ", J)
+            costs.append(J)
+            if plot_mid_train:
+                plt.pause(0.0001)
+                plt.clf()
+                plt.plot(range(len(costs)), costs)
+    if plot_mid_train:
+        plt.pause(10)
+    return w, b
+
+#linear
 def calc_J_np_v2(X, Y, W, b):
     m, n = len(Y), len(W)
     dw = np.zeros((n, 1))
@@ -289,4 +389,4 @@ def trainAdaptive(xVals, yVals, learningRate, iterations):
 
 
 
-#main()
+main()
