@@ -11,21 +11,25 @@ import time
 import random as rnd
 
 def main2():
-    X, Y = np.array([[1.,2.,-1.],[3.,4.,-3.2]]), np.array([1,0,1])
+    X, Y = np.array([[1.,2.,-1., 4., 1., 5.],[3.,4.,-3.2, 3., 6., -4.2,]]), np.array([1,0,1, 0, 0, 1])
+    print (X.shape, Y.shape)
+    #W, b = train_logical_unadaptive(X, Y, 50000, 0.009, True)
 
-    W, b = train_logical_unadaptive(X, Y, 50000, 0.009, True)
+    #print ("W = " + str(W))
 
-    print ("W = " + str(W))
+    #print ("b = " + str(b))
 
-    print ("b = " + str(b))
-
-def main1():
+def main2():
     x = np.array([[1,4], [2,2], [5, 8], [3, 4], [3, 9], [15, 2]])
     y = np.array([1, 1, 0, 0, 0, 0])
     x = x.reshape(x.shape[0], -1).T
     y = y.reshape(y.shape[0], -1)
-    print(x.shape, y.shape)
-    train_logical_unadaptive(x, y, 4000, 0.00001, True)
+    a = np.linspace(-10, 10)
+    plt.plot(range(len(a)), sigmoid(a))
+    plt.show()
+    
+
+    #train_logical_unadaptive(x, y, 4000, 0.005, True)
 
 def main():
     train_set_x_orig, train_set_y, test_set_x_orig, test_set_y, classes = c1w2.load_datasetC1W2()
@@ -34,11 +38,9 @@ def main():
     num_px = len(train_set_x_orig[0])
     train_set_x_flatten = (train_set_x_orig.reshape(train_set_x_orig.shape[0], -1)).T
     test_set_x_flatten = (test_set_x_orig.reshape(test_set_x_orig.shape[0], -1)).T
-    train_set_y = train_set_y.reshape(train_set_y.shape[0], -1)
-    test_set_y = test_set_y.reshape(test_set_y.shape[0], -1)
     train_set_x = train_set_x_flatten/255.0
     test_set_x = test_set_x_flatten/255.0
-    W, b = train_logical_unadaptive(train_set_x, train_set_y, 4000, 0.0005, True)
+    W, b = train_logical_adaptive(train_set_x, train_set_y, 40000, 0.005, True)
 
     Y_prediction_test = predict(test_set_x, W, b)
 
@@ -238,7 +240,7 @@ def train_logical_unadaptive(X, Y, num_iterations, learning_rate, plot_mid_train
                 plt.clf()
                 plt.plot(range(len(costs)), costs)
     if plot_mid_train:
-        plt.pause(10)
+        plt.pause(5)
     return w, b
 
 def train_logical_adaptive(X, Y, num_iterations, learning_rate, plot_mid_train = False):
@@ -268,7 +270,7 @@ def train_logical_adaptive(X, Y, num_iterations, learning_rate, plot_mid_train =
         plt.pause(10)
     return w, b
 
-#j and training
+#linear
 def calc_J_np_v2(X, Y, W, b):
     m, n = len(Y), len(W)
     dw = np.zeros((n, 1))
