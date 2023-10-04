@@ -8,6 +8,7 @@ from scipy.ndimage import zoom
 from PIL import Image
 import h5py
 import random as rnd
+import data_sender
 
 def main():
     train_set_x_orig, train_set_y, test_set_x_orig, test_set_y, classes = c1w2.load_datasetC1W2()
@@ -18,8 +19,8 @@ def main():
     test_set_x_flatten = (test_set_x_orig.reshape(test_set_x_orig.shape[0], -1)).T
     train_set_x = train_set_x_flatten/255.0
     test_set_x = test_set_x_flatten/255.0
-    W, b = train_logical_adaptive(train_set_x, train_set_y, 3000, 0.005)
-    predictImage(W, b, r"C:\Users\omerg\Favorites\Downloads\Gym-structure-1080x675.png")
+    W, b = train_logical_adaptive(train_set_x, train_set_y, 30000, 0.005, False, True)
+    predictImage(W, b, r"C:\Users\omerg\Favorites\Downloads\07CAT-STRIPES-mediumSquareAt3X-v2.jpg")
 
 #vectors
 class vector:
@@ -172,9 +173,6 @@ def predictImage(W, b, path):
     my_predicted_image = predict(my_image, W, b)
     print(my_predicted_image)
 
-
-
-
 def sigmoid(z):
     temp = 1/(1+np.exp(-z)) 
     for t in range(len(temp)):
@@ -224,7 +222,9 @@ def train_logical_unadaptive(X, Y, num_iterations, learning_rate, plot_mid_train
         plt.pause(5)
     return w, b
 
-def train_logical_adaptive(X, Y, num_iterations, learning_rate, plot_mid_train = False):
+def train_logical_adaptive(X, Y, num_iterations, learning_rate, plot_mid_train = False, send_data_to_server = False):
+    if send_data_to_server:
+        data_sender.update_initial_stats(num_iterations, (num_iterations//50))
     w, b = initialize_with_zeros(len(X))
     costs = []
     learning_rate_W = np.full((len(w), 1), learning_rate)
@@ -243,10 +243,14 @@ def train_logical_adaptive(X, Y, num_iterations, learning_rate, plot_mid_train =
         if i%(num_iterations//50)==0:
             print("Iteration: ", i, " cost: ", J)
             costs.append(J)
+            if send_data_to_server:
+                data_sender.update_cost_and_iteration(J, i)
             if plot_mid_train:
                 plt.pause(0.0001)
                 plt.clf()
                 plt.plot(range(len(costs)), costs)
+                
+                
     if plot_mid_train:
         plt.pause(10)
     return w, b
