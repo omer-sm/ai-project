@@ -19,7 +19,7 @@ def main():
     test_set_x_flatten = (test_set_x_orig.reshape(test_set_x_orig.shape[0], -1)).T
     train_set_x = train_set_x_flatten/255.0
     test_set_x = test_set_x_flatten/255.0
-    W, b = train_logical_adaptive(train_set_x, train_set_y, 30000, 0.005, False, True)
+    W, b = train_logical_adaptive(train_set_x, train_set_y, 2000, 0.005, False, True)
     predictImage(W, b, r"C:\Users\omerg\Favorites\Downloads\07CAT-STRIPES-mediumSquareAt3X-v2.jpg")
 
 #vectors
@@ -232,7 +232,7 @@ def train_logical_adaptive(X, Y, num_iterations, learning_rate, plot_mid_train =
     if plot_mid_train:
         plt.ion()
         plt.show()
-    for i in range(num_iterations):
+    for i in range(num_iterations+1):
         A, J = forward_propagation(X, Y, w, b)
         dW, db = backward_propagation(X, Y, A)
         learning_rate_W *= np.where(learning_rate_W * dW > 0, 1.1, -0.5)
