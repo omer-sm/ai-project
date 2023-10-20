@@ -11,16 +11,18 @@ import random as rnd
 import data_sender
 
 def main():
-    train_set_x_orig, train_set_y, test_set_x_orig, test_set_y, classes = c1w2.load_datasetC1W2()
-    m_train = len(train_set_y)
-    m_test = len(test_set_y)
-    num_px = len(train_set_x_orig[0])
-    train_set_x_flatten = (train_set_x_orig.reshape(train_set_x_orig.shape[0], -1)).T
-    test_set_x_flatten = (test_set_x_orig.reshape(test_set_x_orig.shape[0], -1)).T
-    train_set_x = train_set_x_flatten/255.0
-    test_set_x = test_set_x_flatten/255.0
-    W, b = train_logical_adaptive(train_set_x, train_set_y, 2000, 0.005, False, True)
-    predictImage(W, b, r"C:\Users\omerg\Favorites\Downloads\07CAT-STRIPES-mediumSquareAt3X-v2.jpg")
+    
+    X, Y = b_utils.load_dataB1W4_trainN()
+
+    np.random.seed(1)
+
+    J, dW, db = calc_J_np_v1(X,Y,np.random.randn(len(X),1),3)
+
+    print(J)
+
+    print(dW.shape)
+
+    print(db)
 
 #vectors
 class vector:
@@ -281,7 +283,7 @@ def calc_J_np_v1(X, Y, W, b):
         J += (diff**2)/m
         dw += (2*diff/m)*Xi
         db += 2 * diff/m
-    return dw, db, J
+    return J, dw, db
 
 def calcJ(X, Y, W, b):
     m = len(X[0])
