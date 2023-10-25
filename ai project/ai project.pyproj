@@ -35,6 +35,12 @@
     <Compile Include="data_sender.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="DL1.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="vector.py">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

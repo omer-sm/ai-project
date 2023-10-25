@@ -9,156 +9,11 @@ from PIL import Image
 import h5py
 import random as rnd
 import data_sender
+from DL1 import *
 
 def main():
+    return
     
-    X, Y = b_utils.load_dataB1W4_trainN()
-
-    np.random.seed(1)
-
-    J, dW, db = calc_J_np_v1(X,Y,np.random.randn(len(X),1),3)
-
-    print(J)
-
-    print(dW.shape)
-
-    print(db)
-
-#vectors
-class vector:
-    def __init__ (self, size, isCol=True, fill=0, initVals=None):
-        self.isCol = isCol
-        self.vals = []
-        self.size = size
-        if initVals == None:
-            for i in range(size):
-                self.vals.append(fill)
-        if initVals != None:
-            for i in range(size):
-                self.vals.append(initVals[i%len(initVals)])
-
-    def __str__ (self):
-        ret = "["
-        ending = (",\n" if self.isCol else ", ")
-        for v in self.vals:
-            ret += str(v) + ending
-        ret = ret[:-2]
-        ret += "]"
-        return ret
-
-    def transpose(self):
-        return vector (self.size, not self.isCol, initVals = self.vals)
-
-    def dot(self, other):
-        if self.size != other.size:
-            raise Exception("vectors must be the same size for dot product.")
-        if self.isCol or (not other.isCol):
-            raise Exception("vectors need to be a row and a column (respectively) for dot product.")
-        ret = 0
-        tempVector = self * other.transpose()
-        for i in tempVector:
-            ret += i
-        return ret
-
-
-    def __checkCompatibility(self, other):
-      if self.size != other.size:
-        raise Exception("vectors must be the same size for math operations.")
-      if self.isCol != other.isCol:
-        raise Exception("vectors must both be the same axis for math operations.")
-
-    def __add__(self, other):
-        retVals = []
-        if isinstance(other, vector):
-            self.__checkCompatibility(other)
-            for i in range(self.size):
-                retVals.append(self.vals[i] + other.vals[i])
-        else:
-            for i in range(self.size):
-                retVals.append(self.vals[i] + other)
-        return vector(self.size, self.isCol, initVals = retVals)
-    
-    def __sub__(self, other):
-        return self + other * (-1)
-
-    def __mul__(self, other):
-        retVals = []
-        if isinstance(other, vector):
-            self.__checkCompatibility(other)
-            for i in range(self.size):
-                retVals.append(self.vals[i] * other.vals[i])
-        else:
-            for i in range(self.size):
-                retVals.append(self.vals[i] * other)
-        return vector(self.size, self.isCol, initVals = retVals)
-
-    def __truediv__(self, other):
-        retVals = []
-        if isinstance(other, vector):
-            self.__checkCompatibility(other)
-            for i in range(self.size):
-                retVals.append(self.vals[i] / other.vals[i])
-        else:
-            for i in range(self.size):
-                retVals.append(self.vals[i] / other)
-        return vector(self.size, self.isCol, initVals = retVals)
-
-    def __getitem__(self, key):
-        return self.vals[key]
-
-    def __setitem__(self, key, value):
-        self.vals[key] = value
-
-    def __len__(self):
-        return len(self.vals)
-
-    def __radd__(self, other):
-        return self + other
-
-    def __rsub__(self, other):
-        return self * (-1) + other
-
-    def __rtruediv__(self, other):
-        return vector(self.size, self.isCol, fill=other) / self
-    
-    def __rmul__(self, other):
-        return self * other
-
-    def __lt__(self, other):
-        retVals = []
-        for i in range(self.size):
-            retVals.append( 1 if self[i] < other else 0)
-        return vector(self.size, self.isCol, initVals = retVals)
-
-    def __le__(self, other):
-        retVals = []
-        for i in range(self.size):
-            retVals.append( 1 if self[i] <= other else 0)
-        return vector(self.size, self.isCol, initVals = retVals)
-
-    def __eq__(self, other):
-        retVals = []
-        for i in range(self.size):
-            retVals.append( 1 if self[i] == other else 0)
-        return vector(self.size, self.isCol, initVals = retVals)
-
-    def __ne__(self, other):
-        retVals = []
-        for i in range(self.size):
-            retVals.append( 1 if self[i] != other else 0)
-        return vector(self.size, self.isCol, initVals = retVals)
-
-    def __gt__(self, other):
-        retVals = []
-        for i in range(self.size):
-            retVals.append( 1 if self[i] > other else 0)
-        return vector(self.size, self.isCol, initVals = retVals)
-
-    def __ge__(self, other):
-        retVals = []
-        for i in range(self.size):
-            retVals.append( 1 if self[i] >= other else 0)
-        return vector(self.size, self.isCol, initVals = retVals)
 
 #logical regression
 def predict(X, W, b):
@@ -394,5 +249,38 @@ def trainAdaptive(xVals, yVals, learningRate, iterations):
     return jVals, weights, b
 
 
+np.random.seed(1)
+
+l = [None]
+
+l.append(DLLayer("Hidden 1", 6, (4000,)))
+
+print(l[1])
+
+l.append(DLLayer("Hidden 2", 12,
+(6,),"leaky_relu", "random", 0.5,"adaptive"))
+
+l[2].adaptive_cont = 1.2
+
+print(l[2])
+
+l.append(DLLayer("Neurons 3",16, (12,),"tanh"))
+
+print(l[3])
+
+l.append(DLLayer("Neurons 4",3, (16,),"sigmoid",
+"random", 0.2, "adaptive"))
+
+l[4].random_scale = 10.0
+
+l[4].init_weights("random")
+
+np.random.seed(2)
+m = 3
+X = np.random.randn(4000,m)
+Al = X
+for i in range(1, len(l)):
+    Al = l[i].forward_propagation(Al, True)
+    print('layer',i," A", str(Al.shape), ":\n", Al)
 
 main()
