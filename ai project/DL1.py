@@ -18,7 +18,7 @@ class DLLayer:
         self.random_scale = 0.01
         self._input_shape = input_shape
         if activation == "leaky_relu":
-            self.leaky_relu_d = 0.01
+            self.leaky_relu_d = 0.1
         for func in [self._sigmoid, self._trim_sigmoid, self._tanh, self._trim_tanh, self._relu, self._leaky_relu]:
             if func.__name__[1:] == activation:
                 self.activation_forward = func
@@ -31,7 +31,7 @@ class DLLayer:
             self._adaptive_alpha_b = np.full((self._num_units, 1), self.alpha)
             self._adaptive_alpha_W = np.full((self._num_units, *(self._input_shape)),self.alpha)
             self.adaptive_cont = 1.1
-            self.adaptive_switch = 0.5
+            self.adaptive_switch = -0.5
         self.init_weights(W_initialization)
 
     def init_weights(self, W_initialization):
@@ -100,16 +100,39 @@ class DLLayer:
         self._A_prev = np.array(A_prev, copy=True)
         self._Z = np.dot(self.W, A_prev) + self.b
         A = self.activation_forward(self._Z)
-        return A#, self.activation_forward
+        return A
 
     def _sigmoid_backward(self, dA):
-        return 1
+        A = self._sigmoid(self._Z)
+        dZ = dA * A * (1 - A)
+        return dZ
 
     def _tanh_backward(self, dA):
-        return 1
+        dZ = (1 - np.tanh(self._Z)**2) * dA
+        return dZ
 
-    def _relu_backward(self, dA):
-        return 1
+    def _relu_backward(self,dA):
+        dZ = np.where(self._Z <= 0, 0, dA)
+        return dZ
 
     def _leaky_relu_backward(self, dA):
-        return 1
+        dZ = np.where(self._Z <= 0, dA * self.leaky_relu_d, dA)
+        return dZ
+
+    def backward_propagation(self, dA):
+        dZ = self.activation_backward(dA)
+        m = dZ.shape[1]
+        self.db = np.sum(dZ , axis=1, keepdims=True)/m
+        self.dW = (dZ @ (self._A_prev.T))/m
+        dA_Prev = self.W.T @ dZ
+        return dA_Prev
+
+    def update_parameters(self):
+        if self._optimization is None:
+            self.W -= self.dW * self.alpha
+            self.b -= self.db * self.alpha
+        elif self._optimization == "adaptive":
+            self._adaptive_alpha_W *= np.where(self._adaptive_alpha_W * self.dW > 0, self.adaptive_cont, self.adaptive_switch)
+            self._adaptive_alpha_b *= np.where(self._adaptive_alpha_b * self.db > 0, self.adaptive_cont, self.adaptive_switch)
+            self.W -= self._adaptive_alpha_W
+            self.b -= self._adaptive_alpha_b

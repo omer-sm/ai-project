@@ -10,6 +10,7 @@ import h5py
 import random as rnd
 import data_sender
 from DL1 import *
+import random
 
 def main():
     return
@@ -249,38 +250,31 @@ def trainAdaptive(xVals, yVals, learningRate, iterations):
     return jVals, weights, b
 
 
-np.random.seed(1)
+np.random.seed(4)
 
-l = [None]
+random.seed(4)
 
-l.append(DLLayer("Hidden 1", 6, (4000,)))
+l1 = DLLayer("Hidden1", 3, (4,),"trim_sigmoid", "zeros", 0.2, "adaptive")
 
-print(l[1])
+l2 = DLLayer("Hidden2", 2, (3,),"relu", "random", 1.5)
 
-l.append(DLLayer("Hidden 2", 12,
-(6,),"leaky_relu", "random", 0.5,"adaptive"))
+print("before update:W1\n"+str(l1.W)+"\nb1.T:\n"+str(l1.b.T))
 
-l[2].adaptive_cont = 1.2
+print("W2\n"+str(l2.W)+"\nb2.T:\n"+str(l2.b.T))
 
-print(l[2])
+l1.dW = np.random.randn(3,4) * random.randrange(-100,100)
 
-l.append(DLLayer("Neurons 3",16, (12,),"tanh"))
+l1.db = np.random.randn(3,1) * random.randrange(-100,100)
 
-print(l[3])
+l2.dW = np.random.randn(2,3) * random.randrange(-100,100)
 
-l.append(DLLayer("Neurons 4",3, (16,),"sigmoid",
-"random", 0.2, "adaptive"))
+l2.db = np.random.randn(2,1) * random.randrange(-100,100)
 
-l[4].random_scale = 10.0
+l1.update_parameters()
 
-l[4].init_weights("random")
+l2.update_parameters()
 
-np.random.seed(2)
-m = 3
-X = np.random.randn(4000,m)
-Al = X
-for i in range(1, len(l)):
-    Al = l[i].forward_propagation(Al, True)
-    print('layer',i," A", str(Al.shape), ":\n", Al)
+print("after update:W1\n"+str(l1.W)+"\nb1.T:\n"+str(l1.b.T))
 
+print("W2\n"+str(l2.W)+"\nb2.T:\n"+str(l2.b.T))
 main()
