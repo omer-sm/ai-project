@@ -13,6 +13,23 @@ from DL1 import *
 import random
 
 def main():
+    train_set_x_orig, train_set_y, test_set_x_orig, test_set_y, classes = c1w2.load_datasetC1W2()
+    m_train = len(train_set_y)
+    m_test = len(test_set_y)
+    num_px = len(train_set_x_orig[0])
+    train_set_x_flatten = (train_set_x_orig.reshape(train_set_x_orig.shape[0], -1)).T
+    test_set_x_flatten = (test_set_x_orig.reshape(test_set_x_orig.shape[0], -1)).T
+    train_set_x = train_set_x_flatten/255.0
+    test_set_x = test_set_x_flatten/255.0
+    model = DLModel("cat or not?????")
+    model.add(DLLayer("l1", 16, (train_set_x.shape[0],), activation="leaky_relu", alpha=0.01, optimization="adaptive"))
+    model.add(DLLayer("l2", 1, (16,), "trim_sigmoid", alpha=0.01, optimization="adaptive"))
+    model.compile("cross_entropy")
+    model.train(train_set_x, train_set_y, 1000)
+    Y_prediction_train = model.predict(train_set_x)
+    Y_prediction_test = model.predict(test_set_x)
+    print("train accuracy: {} %".format(100 -np.mean(np.abs(Y_prediction_train - train_set_y)) * 100))
+    print("test accuracy: {} %".format(100 -np.mean(np.abs(Y_prediction_test - test_set_y)) * 100))
     return
     
 
@@ -249,32 +266,4 @@ def trainAdaptive(xVals, yVals, learningRate, iterations):
             plt.plot(range(len(jVals)), jVals)
     return jVals, weights, b
 
-
-np.random.seed(4)
-
-random.seed(4)
-
-l1 = DLLayer("Hidden1", 3, (4,),"trim_sigmoid", "zeros", 0.2, "adaptive")
-
-l2 = DLLayer("Hidden2", 2, (3,),"relu", "random", 1.5)
-
-print("before update:W1\n"+str(l1.W)+"\nb1.T:\n"+str(l1.b.T))
-
-print("W2\n"+str(l2.W)+"\nb2.T:\n"+str(l2.b.T))
-
-l1.dW = np.random.randn(3,4) * random.randrange(-100,100)
-
-l1.db = np.random.randn(3,1) * random.randrange(-100,100)
-
-l2.dW = np.random.randn(2,3) * random.randrange(-100,100)
-
-l2.db = np.random.randn(2,1) * random.randrange(-100,100)
-
-l1.update_parameters()
-
-l2.update_parameters()
-
-print("after update:W1\n"+str(l1.W)+"\nb1.T:\n"+str(l1.b.T))
-
-print("W2\n"+str(l2.W)+"\nb2.T:\n"+str(l2.b.T))
 main()

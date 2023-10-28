@@ -1,6 +1,79 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+class DLModel:
+    def __init__(self, name="Model"):
+        self.name = name
+        self.layers = [None]
+        self._is_compiled = False
+
+    def __str__(self):
+        s = self.name + " description:\n\tnum_layers: " + str(len(self.layers)-1) +"\n"
+        if self._is_compiled:
+            s += "\tCompilation parameters:\n"
+            s += "\t\tprediction threshold: " + str(self.threshold) +"\n"
+            s += "\t\tloss function: " + self.loss + "\n\n"
+        for i in range(1,len(self.layers)):
+            s += "\tLayer " + str(i) + ":" + str(self.layers[i]) + "\n"
+        return s
+
+    def add(self, layer):
+        self.layers.append(layer)
+
+    def squared_means(self, AL, Y):
+        return (Y-AL)**2
+
+    def squared_means_backward(self, AL, Y):
+        return -2*(Y-AL)
+
+    def cross_entropy(self, AL, Y):
+        return np.where(Y == 0, -np.log(1-AL), -np.log(AL))
+
+    def cross_entropy_backward(self, AL, Y):
+        return np.where(Y == 0, 1/(1-AL), -1/AL)
+
+    def compile(self, loss, threshold=0.5):
+        if loss not in ["cross_entropy", "squared_means"]:
+            raise Exception(f"invalid value: loss must be either 'cross_entropy' or 'squared_means'. (is currently {loss})")
+        self.loss = loss
+        self.threshold = threshold
+        self.loss_forward = self.cross_entropy if loss == "cross_entropy" else self.squared_means
+        self.loss_backward = self.cross_entropy_backward if loss == "cross_entropy" else self.squared_means_backward
+        self._is_compiled = True
+
+    def compute_cost(self, AL, Y):
+        m = AL.shape[1]
+        costs = self.loss_forward(AL, Y)
+        return np.sum(costs)/m
+
+    def train(self, X, Y, num_iterations):
+        print_ind = max(num_iterations // 100, 1)
+        L = len(self.layers)
+        costs = []
+        for i in range(num_iterations):
+            #forward propagation
+            Al = X
+            for l in range(1, L):
+                Al = self.layers[l].forward_propagation(Al, False)
+            #backward propagation
+            dAl = self.loss_backward(Al, Y)
+            for l in reversed(range(1, L)):
+                dAl = self.layers[l].backward_propagation(dAl)
+                #update parameters
+                self.layers[l].update_parameters()
+            #record progress
+            if i > 0 and i % print_ind == 0:
+                J = self.compute_cost(Al, Y)
+                costs.append(J)
+                print(f"Iteration: {i}, cost: {J}")
+        return costs
+
+    def predict(self, X):
+        Al = X
+        for l in range(1, len(self.layers)):
+                Al = self.layers[l].forward_propagation(Al, True)
+        return np.where(Al > self.threshold, 1, 0)
+
 class DLLayer:
     def __init__ (self, name, num_units, input_shape: tuple, activation="relu", W_initialization="random", alpha=0.01, optimization=None):
         if activation not in ["sigmoid", "tanh", "relu", "leaky_relu", "trim_sigmoid", "trim_tanh"]: 
@@ -19,6 +92,9 @@ class DLLayer:
         self._input_shape = input_shape
         if activation == "leaky_relu":
             self.leaky_relu_d = 0.1
+        if activation[:4] == "trim":
+            self.activation_trim = 1e-10
+            self.activation_backward = self._sigmoid_backward if activation == "trim_sigmoid" else self._trim_tanh
         for func in [self._sigmoid, self._trim_sigmoid, self._tanh, self._trim_tanh, self._relu, self._leaky_relu]:
             if func.__name__[1:] == activation:
                 self.activation_forward = func
@@ -58,9 +134,9 @@ class DLLayer:
         # parameters
         s += "\tparameters:\n\t\tb.T: " + str(self.b.T) + "\n"
         s += "\t\tshape weights: " + str(self.W.shape)+"\n"
-        #plt.hist(self.W.reshape(-1))
-        #plt.title("W histogram")
-        #plt.show()
+        plt.hist(self.W.reshape(-1))
+        plt.title("W histogram")
+        plt.show()
         return s
         
     def _sigmoid(self, Z):
