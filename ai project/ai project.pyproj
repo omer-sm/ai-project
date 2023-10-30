@@ -38,6 +38,9 @@
     <Compile Include="DL1.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="TestDL1.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="vector.py">
       <SubType>Code</SubType>
     </Compile>

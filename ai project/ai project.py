@@ -22,8 +22,8 @@ def main():
     train_set_x = train_set_x_flatten/255.0
     test_set_x = test_set_x_flatten/255.0
     model = DLModel("cat or not?????")
-    model.add(DLLayer("l1", 16, (train_set_x.shape[0],), activation="leaky_relu", alpha=0.01, optimization="adaptive"))
-    model.add(DLLayer("l2", 1, (16,), "trim_sigmoid", alpha=0.01, optimization="adaptive"))
+    model.add(DLLayer("l1", 10, (train_set_x.shape[0],), activation="leaky_relu", alpha=1., optimization="adaptive"))
+    model.add(DLLayer("l2", 1, (10,), "trim_sigmoid", alpha=0.01, optimization="adaptive"))
     model.compile("cross_entropy")
     model.train(train_set_x, train_set_y, 1000)
     Y_prediction_train = model.predict(train_set_x)

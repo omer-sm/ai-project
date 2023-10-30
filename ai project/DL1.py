@@ -140,7 +140,7 @@ class DLLayer:
         return s
         
     def _sigmoid(self, Z):
-        return 1/(1+np.exp(-Z))
+        return 1/(1+np.exp(-Z)) 
 
     def _tanh(self, Z):
         return np.tanh(Z)
