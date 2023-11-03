@@ -9,27 +9,51 @@ from PIL import Image
 import h5py
 import random as rnd
 import data_sender
-from DL1 import *
+from DL2 import *
 import random
+import sklearn
+import sklearn.datasets
+from unit10 import c2w1_init_utils as u10
 
 def main():
-    train_set_x_orig, train_set_y, test_set_x_orig, test_set_y, classes = c1w2.load_datasetC1W2()
-    m_train = len(train_set_y)
-    m_test = len(test_set_y)
-    num_px = len(train_set_x_orig[0])
-    train_set_x_flatten = (train_set_x_orig.reshape(train_set_x_orig.shape[0], -1)).T
-    test_set_x_flatten = (test_set_x_orig.reshape(test_set_x_orig.shape[0], -1)).T
-    train_set_x = train_set_x_flatten/255.0
-    test_set_x = test_set_x_flatten/255.0
-    model = DLModel("cat or not?????")
-    model.add(DLLayer("l1", 10, (train_set_x.shape[0],), activation="leaky_relu", alpha=1., optimization="adaptive"))
-    model.add(DLLayer("l2", 1, (10,), "trim_sigmoid", alpha=0.01, optimization="adaptive"))
+    np.random.seed(2)
+    train_X, train_Y, test_X, test_Y = u10.load_dataset()
+    model = DLModel("zeros")
+    model.add(DLLayer("l1", 10, (2,), W_initialization="He"))
+    model.add(DLLayer("l2", 5, (10,), W_initialization="He"))
+    model.add(DLLayer("l3", 1, (5,), "trim_sigmoid", "He", 1.0))
     model.compile("cross_entropy")
-    model.train(train_set_x, train_set_y, 1000)
-    Y_prediction_train = model.predict(train_set_x)
-    Y_prediction_test = model.predict(test_set_x)
-    print("train accuracy: {} %".format(100 -np.mean(np.abs(Y_prediction_train - train_set_y)) * 100))
-    print("test accuracy: {} %".format(100 -np.mean(np.abs(Y_prediction_test - test_set_y)) * 100))
+    init = "He"
+
+    costs = model.train(train_X, train_Y, 15000)
+    
+    plt.plot(costs)
+    
+    plt.ylabel('cost')
+    
+    plt.xlabel('iterations (per 150s)')
+    
+    plt.title(init + " initialization")
+    
+    plt.show()
+    
+    plt.title("Model with " + init + " initialization")
+    
+    axes = plt.gca()
+    
+    axes.set_xlim([-1.5,1.5])
+    
+    axes.set_ylim([-1.5,1.5])
+    
+    u10.plot_decision_boundary(lambda x: model.predict(x.T), test_X, test_Y)
+    
+    predictions = model.predict(train_X)
+    
+    print ('Train accuracy: %d' % float((np.dot(train_Y,predictions.T) +np.dot(1-train_Y,1-predictions.T))/float(train_Y.size)*100) + '%')
+    
+    predictions = model.predict(test_X)
+    
+    print ('Test accuracy: %d' % float((np.dot(test_Y,predictions.T) +np.dot(1-test_Y,1-predictions.T))/float(test_Y.size)*100) + '%')
     return
     
 
