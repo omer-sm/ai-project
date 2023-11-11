@@ -80,6 +80,8 @@ class DLModel:
         for l in range(1, len(self.layers)):
             self.layers[l].save_weights(path, "Layer{i}".format(i = l))
 
+    def check_backward_propagation(self, X, Y, epsilon=1e-7):
+
 
 
 class DLLayer:
@@ -248,3 +250,13 @@ class DLLayer:
         with h5py.File(path+"/"+file_name+'.h5', 'w') as hf:
             hf.create_dataset("W", data=self.W)
             hf.create_dataset("b", data=self.b)
+
+    def params_to_vec(self):
+        return np.concatenate((np.reshape(self.W,(-1,)),np.reshape(self.b, (-1,))), axis=0)
+
+    def vec_to_params(self, vec):
+        self.W = vec[0:self.W.size].reshape(self.W.shape)
+        self.b = vec[self.W.size:].reshape(self.b.shape)
+
+    def gradients_to_vec(self):
+        return np.concatenate((np.reshape(self.dW,(-1,)),np.reshape(self.db, (-1,))), axis=0)

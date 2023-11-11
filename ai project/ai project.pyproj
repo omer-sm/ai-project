@@ -5,7 +5,7 @@
     <ProjectGuid>5bb35e1a-ffa7-4d05-b72d-507227aff6f9</ProjectGuid>
     <ProjectHome>
     </ProjectHome>
-    <StartupFile>TestDL2.py</StartupFile>
+    <StartupFile>TestGrad.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -38,6 +38,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="DL1.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="TestGrad.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="TestDL2.py">
