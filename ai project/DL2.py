@@ -81,7 +81,28 @@ class DLModel:
             self.layers[l].save_weights(path, "Layer{i}".format(i = l))
 
     def check_backward_propagation(self, X, Y, epsilon=1e-7):
-
+        L = len(self.layers)
+        Al = X
+        for l in range(1, L):
+            Al = self.layers[l].forward_propagation(Al, False)
+        dAl = self.loss_backward(Al, Y)
+        for l in reversed(range(1, L)):
+            dAl = self.layers[l].backward_propagation(dAl)
+        diff = 0
+        for l in reversed(range(1, L)):
+            params_vec = self.layers[l].params_to_vec()
+            
+            n = len(params_vec)
+            approx = np.zeros((n,), dtype=float)
+            for i in range(n):
+                v = np.copy(params_vec)
+                v[i] += epsilon
+                f_plus = f(v)
+                v[i] -= 2*epsilon 
+                f_minus = f(v) 
+                approx[i] = f_plus-f_minus
+            approx /= (2*epsilon) 
+            diff += (np.linalg.norm(grad_vec-approx))/((np.linalg.norm(grad_vec))+(np.linalg.norm(approx)))
 
 
 class DLLayer:

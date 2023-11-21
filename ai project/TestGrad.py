@@ -23,9 +23,7 @@ def check_n_grad(f, params_vec, grad_vec, epsilon=1e-7):
     return check, diff
 
 def g(parms):
-
     a,b = parms[0], parms[1]
-
     return 2*a**2+4*a*b-3*b**2
 
 def dg_da(a,b):
