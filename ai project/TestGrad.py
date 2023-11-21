@@ -38,14 +38,28 @@ def dg_db_wrong(a,b):
 
     return 4*a-6*b+0.001
 
-a,b = 5.0,1.0
+np.random.seed(3)
 
-check, diff = check_n_grad(g, np.array([a,b]), np.array([dg_da(a,b),dg_db(a,b)]))
+check_X = np.random.randn(3,1)
 
-print("check:",str(check), ", diff:", str(diff))
+check_Y = np.sum(check_X,axis=0) > 2
 
-check, diff = check_n_grad(g, np.array([a,b]), np.array([dg_da(a,b),dg_db_wrong(a,b)]))
+hidden1 = DLLayer("h1",2,(3,),"relu",W_initialization = "Xavier")
 
-print("check:",str(check), ", diff:", str(diff))
+hidden2 = DLLayer("h2",3,(2,),"relu",W_initialization = "Xavier")
 
+hidden3 = DLLayer("h3",10,(3,),"sigmoid",W_initialization = "Xavier")
 
+model = DLModel()
+
+model.add(hidden1)
+
+model.add(hidden2)
+
+model.add(hidden3)
+
+model.compile("squared_means")
+
+check, diff, layer = model.check_backward_propagation(check_X, check_Y)
+
+print("check:",str(check), ", diff:", str(diff), ", layer:", str(layer))

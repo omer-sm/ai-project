@@ -82,27 +82,49 @@ class DLModel:
 
     def check_backward_propagation(self, X, Y, epsilon=1e-7):
         L = len(self.layers)
+        #forward and backward prop to update dw and db in layers
         Al = X
         for l in range(1, L):
             Al = self.layers[l].forward_propagation(Al, False)
         dAl = self.loss_backward(Al, Y)
         for l in reversed(range(1, L)):
             dAl = self.layers[l].backward_propagation(dAl)
-        diff = 0
+        #make return variables
+        avg_diff = 0
+        total_check = True
+        problem_layer = L
+        #calc the approx grad for each layer
         for l in reversed(range(1, L)):
             params_vec = self.layers[l].params_to_vec()
-            
+            grad_vec = self.layers[l].gradients_to_vec()
             n = len(params_vec)
             approx = np.zeros((n,), dtype=float)
             for i in range(n):
                 v = np.copy(params_vec)
                 v[i] += epsilon
-                f_plus = f(v)
+                self.layers[l].vec_to_params(v)
+                Al = X
+                for layer in range(1, L):
+                    Al = self.layers[layer].forward_propagation(Al, False)
+                j_plus = self.compute_cost(Al, Y)
                 v[i] -= 2*epsilon 
-                f_minus = f(v) 
-                approx[i] = f_plus-f_minus
+                self.layers[l].vec_to_params(v)
+                Al = X
+                for layer in range(1, L):
+                    Al = self.layers[layer].forward_propagation(Al, False)
+                j_minus = self.compute_cost(Al, Y) 
+                approx[i] = j_plus-j_minus
             approx /= (2*epsilon) 
-            diff += (np.linalg.norm(grad_vec-approx))/((np.linalg.norm(grad_vec))+(np.linalg.norm(approx)))
+            diff = (np.linalg.norm(grad_vec-approx))/((np.linalg.norm(grad_vec))+(np.linalg.norm(approx)))
+            check = (diff < epsilon)
+            self.layers[l].vec_to_params(params_vec)
+            print(diff)
+            avg_diff += diff 
+            if not check:
+                total_check = False
+                problem_layer = l
+        avg_diff /= (L - 1)
+        return total_check, avg_diff, problem_layer
 
 
 class DLLayer:
@@ -125,7 +147,6 @@ class DLLayer:
             self.leaky_relu_d = 0.1
         if activation[:4] == "trim":
             self.activation_trim = 1e-10
-            #self.activation_backward = self._sigmoid_backward if activation == "trim_sigmoid" else self._trim_tanh
         for func in [self._sigmoid, self._trim_sigmoid, self._tanh, self._trim_tanh, self._relu, self._leaky_relu]:
             if func.__name__[1:] == activation:
                 self.activation_forward = func
@@ -143,6 +164,7 @@ class DLLayer:
 
     def init_weights(self, W_initialization):
         self.b = np.zeros((self._num_units,1), dtype=float)
+        self.b += 1
         if W_initialization == "zeros":
             self.W = np.zeros((self._num_units, *(self._input_shape)), dtype=float)
         elif W_initialization == "He":
