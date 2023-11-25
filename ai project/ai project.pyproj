@@ -5,7 +5,7 @@
     <ProjectGuid>5bb35e1a-ffa7-4d05-b72d-507227aff6f9</ProjectGuid>
     <ProjectHome>
     </ProjectHome>
-    <StartupFile>TestGrad.py</StartupFile>
+    <StartupFile>ai project.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -30,6 +30,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ai project.py" />
+    <Compile Include="DL3.py" />
     <Compile Include="DL2.py" />
     <Compile Include="images.py">
       <SubType>Code</SubType>

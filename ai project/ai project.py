@@ -9,51 +9,35 @@ from PIL import Image
 import h5py
 import random as rnd
 import data_sender
-from DL2 import *
-import random
-import sklearn
-import sklearn.datasets
-from unit10 import c2w1_init_utils as u10
+from DL3 import *
 
 def main():
-    np.random.seed(2)
-    train_X, train_Y, test_X, test_Y = u10.load_dataset()
-    model = DLModel("zeros")
-    model.add(DLLayer("l1", 10, (2,), W_initialization="He"))
-    model.add(DLLayer("l2", 5, (10,), W_initialization="He"))
-    model.add(DLLayer("l3", 1, (5,), "trim_sigmoid", "He", 1.0))
-    model.compile("cross_entropy")
-    init = "He"
-
-    costs = model.train(train_X, train_Y, 15000)
-    
+    # set default size of plots
+    plt.rcParams['figure.figsize'] = (5.0, 4.0)
+    plt.rcParams['image.interpolation'] = 'nearest'
+    plt.rcParams['image.cmap'] = 'gray'
+    # set seed
+    np.random.seed(3)
+    softmax_layer = DLLayer("Layer1",3,(4,),"softmax")
+    model = DLModel()
+    model.add(softmax_layer)
+    model.compile("categorical_cross_entropy")
+    X = np.random.randn(4, 50000)*10
+    Y = np.zeros((3, 50000))
+    sumX = np.sum(X,axis=0)
+    for i in range (len(Y[0])):
+        if sumX[i] > 5:
+            Y[0][i] = 1
+        elif sumX[i] < -5:
+            Y[2][i] = 1
+        else:
+            Y[1][i] = 1
+    costs = model.train(X,Y,1000)
     plt.plot(costs)
-    
-    plt.ylabel('cost')
-    
-    plt.xlabel('iterations (per 150s)')
-    
-    plt.title(init + " initialization")
-    
     plt.show()
-    
-    plt.title("Model with " + init + " initialization")
-    
-    axes = plt.gca()
-    
-    axes.set_xlim([-1.5,1.5])
-    
-    axes.set_ylim([-1.5,1.5])
-    
-    u10.plot_decision_boundary(lambda x: model.predict(x.T), test_X, test_Y)
-    
-    predictions = model.predict(train_X)
-    
-    print ('Train accuracy: %d' % float((np.dot(train_Y,predictions.T) +np.dot(1-train_Y,1-predictions.T))/float(train_Y.size)*100) + '%')
-    
-    predictions = model.predict(test_X)
-    
-    print ('Test accuracy: %d' % float((np.dot(test_Y,predictions.T) +np.dot(1-test_Y,1-predictions.T))/float(test_Y.size)*100) + '%')
+    predictions = model.predict(X)
+    print("right",np.sum(Y.argmax(axis=0) == predictions.argmax(axis=0)))
+    print("wrong",np.sum(Y.argmax(axis=0) != predictions.argmax(axis=0)))
     return
     
 
