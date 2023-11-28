@@ -18,26 +18,46 @@ def main():
     plt.rcParams['image.cmap'] = 'gray'
     # set seed
     np.random.seed(3)
-    softmax_layer = DLLayer("Layer1",3,(4,),"softmax")
+
+    softmax_layer =DLLayer("Layer1",3,(4,),"softmax", alpha=1.2)
+
     model = DLModel()
+
     model.add(softmax_layer)
+
     model.compile("categorical_cross_entropy")
+
     X = np.random.randn(4, 50000)*10
+
     Y = np.zeros((3, 50000))
+
     sumX = np.sum(X,axis=0)
+
     for i in range (len(Y[0])):
+
         if sumX[i] > 5:
+
             Y[0][i] = 1
+
         elif sumX[i] < -5:
+
             Y[2][i] = 1
+
         else:
+
             Y[1][i] = 1
+
     costs = model.train(X,Y,1000)
+
     plt.plot(costs)
+
     plt.show()
+
     predictions = model.predict(X)
-    print("right",np.sum(Y.argmax(axis=0) == predictions.argmax(axis=0)))
-    print("wrong",np.sum(Y.argmax(axis=0) != predictions.argmax(axis=0)))
+
+    print("right",np.sum(Y.argmax(axis=0) ==predictions.argmax(axis=0)))
+
+    print("wrong",np.sum(Y.argmax(axis=0) !=predictions.argmax(axis=0)))
     return
     
 
