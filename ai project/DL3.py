@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os 
 import h5py
+from sklearn.metrics import classification_report, confusion_matrix
 
 class DLModel:
     def __init__(self, name="Model"):
@@ -138,6 +139,22 @@ class DLModel:
         avg_diff /= (L - 1)
         return total_check, avg_diff, problem_layer
 
+    @staticmethod
+    def to_one_hot(num_categories, Y):
+        m = Y.shape[0]
+        Y = Y.reshape(1, m)
+        Y_new = np.eye(num_categories)[Y.astype('int32')]
+        Y_new = Y_new.T
+        Y_new = Y_new.reshape(num_categories, m)
+        return Y_new
+
+    def confusion_matrix(self, X, Y):
+        prediction = self.predict(X)
+        prediction_index = np.argmax(prediction, axis=0)
+        Y_index = np.argmax(Y, axis=0)
+        right = np.sum(prediction_index == Y_index)
+        print("accuracy: ",str(right/len(Y[0])))
+        print(confusion_matrix(prediction_index, Y_index))
 
 class DLLayer:
     def __init__ (self, name, num_units, input_shape: tuple, activation="relu", W_initialization="random", alpha=0.01, optimization=None):
