@@ -5,7 +5,10 @@ import scipy
 from scipy import ndimage
 from scipy.ndimage import zoom
 from PIL import Image, ImageOps
-from sklearn.datasets import fetch_openml
+import sklearn
+import sklearn.datasets
+import scipy.io
+from unit10 import utils as u10
 import h5py
 import random as rnd
 import data_sender
@@ -15,7 +18,24 @@ def main():
     plt.rcParams['figure.figsize'] = (7.0, 4.0) # set default size of plots
     plt.rcParams['image.interpolation'] = 'nearest'
     plt.rcParams['image.cmap'] = 'gray'
-
+    np.random.seed(2)
+    train_X, train_Y, test_X, test_Y = u10.load_2D_dataset()
+    n = train_X.shape[0]
+    model = DLModel("model")
+    model.add(DLLayer("1", 64, (n, ), "relu", "He", 0.5))
+    model.add(DLLayer("2", 32, (64, ), "leaky_relu", "He", 0.7, None, "dropout"))
+    model.add(DLLayer("3", 5, (32, ), "leaky_relu", "He", 0.7, None, "dropout"))
+    model.add(DLLayer("4", 1, (5, ), "sigmoid", "He", 0.7, None, "dropout"))
+    model.compile("cross_entropy")
+    costs = model.train(train_X, train_Y,20000)
+    print("train accuracy:", np.mean((model.forward_propagation(train_X) > 0.7) == train_Y))
+    print("test accuracy:", np.mean((model.forward_propagation(test_X) > 0.7) == test_Y))
+    plt.title(f"Model no regularization")
+    axes = plt.gca()
+    axes.set_xlim([-0.75,0.40])
+    axes.set_ylim([-0.75,0.65])
+    u10.plot_decision_boundary(model, train_X, train_Y)
+    u10.print_costs(costs,20000)
     return
     
 

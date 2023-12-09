@@ -58,7 +58,10 @@ class DLModel:
     def compute_cost(self, AL, Y):
         m = AL.shape[1]
         costs = self.loss_forward(AL, Y)
-        return np.sum(costs)/m
+        regularization_costs = 0
+        for l in range(1, len(self.layers)):
+            regularization_costs += self.layers[l].regularization_cost(m)
+        return np.sum(costs)/m + regularization_costs
 
     def train(self, X, Y, num_iterations):
         print_ind = max(num_iterations // 100, 1)
@@ -89,6 +92,14 @@ class DLModel:
         if self.loss == self.categorical_cross_entropy:
             return np.where(Al==Al.max(axis=0),1,0)
         return np.where(Al > self.threshold, 1, 0)
+
+    def forward_propagation(self, X):
+        Al = X
+        for l in range(1, len(self.layers)):
+                Al = self.layers[l].forward_propagation(Al, False)
+        if self.loss == self.categorical_cross_entropy:
+            return np.where(Al==Al.max(axis=0),1,0)
+        return Al
 
     def save_weights(self, path):
         for l in range(1, len(self.layers)):
@@ -175,6 +186,7 @@ class DLLayer:
         self.random_scale = 0.01
         self._input_shape = input_shape
         self.regularization = regularization
+        self.L2_lambda = 0
         if activation == "leaky_relu":
             self.leaky_relu_d = 0.1
         if activation[:4] == "trim":
@@ -300,7 +312,7 @@ class DLLayer:
     def forward_dropout(self, A_prev, is_train):
         A_prev_copy = np.array(A_prev, copy=True)
         if is_train == True and self.regularization == "dropout":
-            self._D = np.random.rand(*A_prev.shape) < self.dropout_keep_prob
+            self._D = np.random.rand(*A_prev.shape) > self.dropout_keep_prob
             A_prev_copy *= self._D
             A_prev_copy /= self.dropout_keep_prob
         return A_prev_copy
@@ -342,9 +354,22 @@ class DLLayer:
         dZ = self.activation_backward(dA)
         m = dZ.shape[1]
         self.db = np.sum(dZ , axis=1, keepdims=True)/m
-        self.dW = (dZ @ (self._A_prev.T))/m
+        self.dW = ((dZ @ (self._A_prev.T)) + self.L2_lambda * self.W)/m
         dA_Prev = self.W.T @ dZ
+        dA_Prev = self.backward_dropout(dA_Prev)
         return dA_Prev
+
+    def backward_dropout(self, dA_prev):
+        if self.regularization == "dropout":
+            dA_prev *= self._D
+            dA_prev /= self.dropout_keep_prob
+        return dA_prev
+
+    def regularization_cost(self, m):
+        if self.regularization != "L2":
+            return 0 
+        W_square_average = np.sum(np.square(self.W))
+        return self.L2_lambda * W_square_average / (2 * m)
 
     def update_parameters(self):
         if self._optimization is None:
