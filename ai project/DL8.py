@@ -170,7 +170,7 @@ class DLModel:
 
 class DLLayer:
     def __init__ (self, name, num_units, input_shape: tuple, activation="relu", 
-                  W_initialization="random", alpha=0.01, optimization=None, regularization=None):
+                  W_initialization="random", alpha=0.01, optimization=None, regularization=None, keep_prob=0.6):
         if activation not in ["sigmoid", "tanh", "relu", "leaky_relu", "softmax", "trim_sigmoid", "trim_tanh", "trim_softmax"]: 
             raise Exception(f"invalid value: activation must be either 'sigmoid', 'trim_sigmoid', 'tanh', 'trim_tanh', 'relu', 'leaky_relu', 'softmax' or 'trim_softmax'. (is currently {activation})")
         if W_initialization not in ["random", "zeros", "He", "Xavier"] and W_initialization[-3:] != ".h5":
@@ -208,9 +208,9 @@ class DLLayer:
             self.adaptive_cont = 1.1
             self.adaptive_switch = -0.5
         if regularization == "L2":
-            self.L2_lambda = 0.6
+            self.L2_lambda = 0.7
         elif regularization == "dropout":
-            self.dropout_keep_prob = 0.7
+            self.dropout_keep_prob = keep_prob
         self.init_weights(W_initialization)
 
     def init_weights(self, W_initialization):
