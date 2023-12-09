@@ -9,38 +9,13 @@ from sklearn.datasets import fetch_openml
 import h5py
 import random as rnd
 import data_sender
-from DL3 import *
+from DL8 import *
 
 def main():
-    
-    model = DLModel()
-    model.add(DLLayer("Layer1", 64, (784,), "sigmoid", "digits/Layer1.h5", 0.1, "adaptive"))
-    model.add(DLLayer("Layer2", 10, (64,), "softmax", "digits/Layer2.h5", 0.1, "adaptive"))
-    model.compile("categorical_cross_entropy")
-    #print("Train:")
-    #model.confusion_matrix(X_train, Y_train)
-    #print("Test:")
-    #model.confusion_matrix(X_test, Y_test)
-    num_px = 28
-    img_path = r"C:\Users\omerg\OneDrive\Pictures\effes.jpg" # full path of the rgb image
-    image = Image.open(img_path)
-    image28 = image.resize((num_px, num_px), Image.LANCZOS)
-    gray_image = ImageOps.grayscale(image28)
-    my_image = np.reshape(gray_image,(num_px*num_px,1))
-    plt.imshow(my_image.reshape(28,28), cmap = matplotlib.cm.binary)
-    plt.axis("off")
-    #plt.show()
-    my_image = my_image/255 - 0.5
-    pred = model.predict(my_image).T
-    print(np.where(pred[0] == 1))
-    #np.random.seed(1)
-    #costs = model.train(X_train, Y_train, 200)
-    #plt.plot(np.squeeze(costs))
-    #plt.ylabel('cost')
-    #plt.xlabel('iterations')
-    #plt.title("Learning rate =" + str(0.1))
-    #plt.show()
-    #model.save_weights("digits")
+    plt.rcParams['figure.figsize'] = (7.0, 4.0) # set default size of plots
+    plt.rcParams['image.interpolation'] = 'nearest'
+    plt.rcParams['image.cmap'] = 'gray'
+
     return
     
 
