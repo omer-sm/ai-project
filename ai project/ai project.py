@@ -12,7 +12,31 @@ from unit10 import utils as u10
 import h5py
 import random as rnd
 import data_sender
-from DL8 import *
+from DL4 import *
+
+def main2():
+    np.random.seed(2)
+
+    X = np.random.randn(15,7) * 5
+
+    Y = np.random.rand(1,7) > 0.5
+
+    model = DLModel()
+
+    model.add(DLLayer("L2", 3, (15,), regularization="L2"))
+
+    model.layers[1].L2_lambda = 0.6
+
+    model.add(DLLayer("No regularization", 13, (3,)))
+
+    model.add(DLLayer("L2", 1, (13,), "sigmoid","He",regularization="L2"))
+    
+
+    model.compile(loss="cross_entropy")
+
+    J = model.train(X, Y, 1)
+
+    print("J:",str(J[0]))
 
 def main():
     plt.rcParams['figure.figsize'] = (7.0, 4.0) # set default size of plots
@@ -22,10 +46,10 @@ def main():
     train_X, train_Y, test_X, test_Y = u10.load_2D_dataset()
     n = train_X.shape[0]
     model = DLModel("model")
-    model.add(DLLayer("1", 64, (n, ), "relu", "Xavier", 0.1))
-    model.add(DLLayer("2", 32, (64, ), "relu", "Xavier", 0.1, None, "dropout"))
-    model.add(DLLayer("3", 5, (32, ), "relu", "Xavier", 0.1, None, "dropout"))
-    model.add(DLLayer("4", 1, (5, ), "trim_sigmoid", "Xavier", 0.1, None, "dropout", 0.7))
+    model.add(DLLayer("1", 64, (n, ), "relu", "Xavier", 0.1, None, "L2"))
+    model.add(DLLayer("2", 32, (64, ), "relu", "Xavier", 0.1, None, "L2"))
+    model.add(DLLayer("3", 5, (32, ), "relu", "Xavier", 0.1, None, "L2"))
+    model.add(DLLayer("4", 1, (5, ), "trim_sigmoid", "Xavier", 0.1))
     model.compile("cross_entropy")
     costs = model.train(train_X, train_Y,20000)
     print("train accuracy:", np.mean((model.predict(train_X)) == train_Y))

@@ -79,7 +79,7 @@ class DLModel:
                 #update parameters
                 self.layers[l].update_parameters()
             #record progress
-            if i > 0 and i % print_ind == 0:
+            if i >= 0 and i % print_ind == 0:
                 J = self.compute_cost(Al, Y)
                 costs.append(J)
                 print(f"Iteration: {i}, cost: {J}")
@@ -188,7 +188,7 @@ class DLLayer:
         self.regularization = regularization
         self.L2_lambda = 0
         if activation == "leaky_relu":
-            self.leaky_relu_d = 0.1
+            self.leaky_relu_d = 0.01
         if activation[:4] == "trim":
             self.activation_trim = 1e-10
         for func in [self._sigmoid, self._trim_sigmoid, self._tanh, self._trim_tanh, self._relu, self._leaky_relu,
@@ -247,7 +247,7 @@ class DLLayer:
             s += "\t\t\tswitch: " + str(self.adaptive_switch)+"\n"
         #regularization
         s += "\tregularization: "
-        s += self.regularization
+        s += self.regularization if self.regularization != None else "None"
         # parameters
         s += "\tparameters:\n\t\tb.T: " + str(self.b.T) + "\n"
         s += "\t\tshape weights: " + str(self.W.shape)+"\n"
@@ -305,14 +305,15 @@ class DLLayer:
 
     def forward_propagation(self, A_prev, is_train):
         self._A_prev = self.forward_dropout(A_prev, is_train)
-        self._Z = np.dot(self.W, A_prev) + self.b
+        self._Z = np.dot(self.W, self._A_prev) + self.b
         A = self.activation_forward(self._Z)
         return A
 
     def forward_dropout(self, A_prev, is_train):
         A_prev_copy = np.array(A_prev, copy=True)
         if is_train == True and self.regularization == "dropout":
-            self._D = np.random.rand(*A_prev.shape) > self.dropout_keep_prob
+            self._D = np.random.rand(1, A_prev.shape[0]) < self.dropout_keep_prob
+            self._D = self._D.T
             A_prev_copy *= self._D
             A_prev_copy /= self.dropout_keep_prob
         return A_prev_copy
@@ -368,8 +369,8 @@ class DLLayer:
     def regularization_cost(self, m):
         if self.regularization != "L2":
             return 0 
-        W_square_average = np.sum(np.square(self.W))
-        return self.L2_lambda * W_square_average / (2 * m)
+        W_square_sum = np.sum(np.square(self.W))
+        return self.L2_lambda * W_square_sum / (2 * m)
 
     def update_parameters(self):
         if self._optimization is None:
