@@ -12,56 +12,23 @@ from unit10 import utils as u10
 import h5py
 import random as rnd
 import data_sender
-from DL4 import *
-
-def main2():
-    np.random.seed(2)
-
-    X = np.random.randn(15,7) * 5
-
-    Y = np.random.rand(1,7) > 0.5
-
-    model = DLModel()
-
-    model.add(DLLayer("L2", 3, (15,), regularization="L2"))
-
-    model.layers[1].L2_lambda = 0.6
-
-    model.add(DLLayer("No regularization", 13, (3,)))
-
-    model.add(DLLayer("L2", 1, (13,), "sigmoid","He",regularization="L2"))
-    
-
-    model.compile(loss="cross_entropy")
-
-    J = model.train(X, Y, 1)
-
-    print("J:",str(J[0]))
+from DL5 import *
 
 def main():
     plt.rcParams['figure.figsize'] = (7.0, 4.0) # set default size of plots
     plt.rcParams['image.interpolation'] = 'nearest'
     plt.rcParams['image.cmap'] = 'gray'
-    np.random.seed(1)
-    train_X, train_Y, test_X, test_Y = u10.load_2D_dataset()
-    n = train_X.shape[0]
+    train_X, train_Y = u10.load_minibatch_dataset()
+    plt.show()
     model = DLModel("model")
-    model.add(DLLayer("1", 64, (n, ), "relu", "Xavier", 0.1, None, "L2"))
-    model.add(DLLayer("2", 32, (64, ), "relu", "Xavier", 0.1, None, "L2"))
-    model.add(DLLayer("3", 5, (32, ), "relu", "Xavier", 0.1, None, "L2"))
-    model.add(DLLayer("4", 1, (5, ), "trim_sigmoid", "Xavier", 0.1))
-    model.compile("cross_entropy")
-    costs = model.train(train_X, train_Y,20000)
-    print("train accuracy:", np.mean((model.predict(train_X)) == train_Y))
-    print("test accuracy:", np.mean((model.predict(test_X)) == test_Y))
-    plt.title(f"Model no regularization")
-    axes = plt.gca()
-    axes.set_xlim([-0.75,0.40])
-    axes.set_ylim([-0.75,0.65])
-    u10.plot_decision_boundary(model, train_X, train_Y)
-    u10.print_costs(costs,20000)
+    model.add(DLLayer("1", 64, (train_X.shape[0], ), "relu", "He", 0.05))
+    model.add(DLLayer("2", 32, (64, ), "relu", "He", 0.05))
+    model.add(DLLayer("3", 5, (32, ), "relu", "He", 0.05))
+    model.add(DLLayer("4", 1, (5, ), "sigmoid", "He", 0.05))
+    model.compile()
     return
     
+
 
 #logical regression
 def predict(X, W, b):

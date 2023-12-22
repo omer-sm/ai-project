@@ -30,6 +30,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ai project.py" />
+    <Compile Include="DL5.py" />
     <Compile Include="DL4.py" />
     <Compile Include="DL3.py" />
     <Compile Include="DL2.py" />

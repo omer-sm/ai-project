@@ -3,12 +3,15 @@ import matplotlib.pyplot as plt
 import os 
 import h5py
 from sklearn.metrics import classification_report, confusion_matrix
+import math
 
 class DLModel:
-    def __init__(self, name="Model"):
+    def __init__(self, name="Model", inject_str_func=None):
         self.name = name
         self.layers = [None]
         self._is_compiled = False
+        self.inject_str_func = inject_str_func
+
 
     def __str__(self):
         s = self.name + " description:\n\tnum_layers: " + str(len(self.layers)-1) +"\n"
@@ -63,26 +66,34 @@ class DLModel:
             regularization_costs += self.layers[l].regularization_cost(m)
         return np.sum(costs)/m + regularization_costs
 
-    def train(self, X, Y, num_iterations):
-        print_ind = max(num_iterations // 100, 1)
+    def train(self, X, Y, num_epochs, mini_batch_size):
+        print_ind = max(num_epochs // 100, 1)
         L = len(self.layers)
         costs = []
-        for i in range(num_iterations):
-            #forward propagation
-            Al = X
-            for l in range(1, L):
-                Al = self.layers[l].forward_propagation(Al, True)
-            #backward propagation
-            dAl = self.loss_backward(Al, Y)
-            for l in reversed(range(1, L)):
-                dAl = self.layers[l].backward_propagation(dAl)
-                #update parameters
-                self.layers[l].update_parameters()
+        for i in range(num_epochs):
+            Ji = 0
+            mini_batches = self.random_mini_batches(X, Y, mini_batch_size, i)
+            for k in range(len(mini_batches)):
+                #forward propagation
+                Al = mini_batches[k][0]
+                Yk = mini_batches[k][1]
+                for l in range(1, L):
+                    Al = self.layers[l].forward_propagation(Al, True)
+                #backward propagation
+                dAl = self.loss_backward(Al, Yk)
+                for l in reversed(range(1, L)):
+                    dAl = self.layers[l].backward_propagation(dAl)
+                    #update parameters
+                    self.layers[l].update_parameters()
+                Ji += self.compute_cost(Al, Yk)
             #record progress
             if i >= 0 and i % print_ind == 0:
-                J = self.compute_cost(Al, Y)
-                costs.append(J)
-                print(f"Iteration: {i}, cost: {J}")
+                #J = self.compute_cost(Al, Y)
+                costs.append(Ji)
+                inject_string = ""
+                if self.inject_str_func != None:
+                    inject_string = self.inject_str_func(self, X, Y, Al)
+                print(f"Iteration: {i}, cost: {Ji}" + inject_string)
         return costs
 
     def predict(self, X):
@@ -167,6 +178,22 @@ class DLModel:
         right = np.sum(prediction_index == Y_index)
         print("accuracy: ",str(right/len(Y[0])))
         print(confusion_matrix(prediction_index, Y_index))
+
+    @staticmethod
+    def random_mini_batches(X, Y, mini_batch_size=64, seed=0):
+        np.random.seed(seed)
+        m = Y.shape[1]
+        permutation = list(np.random.permutation(m))
+        shuffled_X = X[:, permutation]
+        shuffled_Y = Y[:, permutation].reshape((-1,m))
+        num_complete_minibatches = math.floor(m/mini_batch_size)
+        mini_batches = []
+        for k in range(num_complete_minibatches+1):
+            mini_batch_X = shuffled_X[:, mini_batch_size*k : (k+1) * mini_batch_size]
+            mini_batch_Y = shuffled_Y[:, mini_batch_size*k : (k+1) * mini_batch_size]
+            mini_batch = (mini_batch_X, mini_batch_Y)
+            mini_batches.append(mini_batch)
+        return mini_batches
 
 class DLLayer:
     def __init__ (self, name, num_units, input_shape: tuple, activation="relu", 
