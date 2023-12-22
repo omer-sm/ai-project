@@ -33,9 +33,13 @@ class DLModel:
         return -2*(Y-AL)
 
     def cross_entropy(self, AL, Y):
+        AL = np.where(AL == 0, AL+1e-10, AL )
+        AL = np.where(AL == 1, AL-1e-10, AL )
         return np.where(Y == 0, -np.log(1-AL), -np.log(AL))
 
     def cross_entropy_backward(self, AL, Y):
+        AL = np.where(AL == 0, AL+1e-10, AL )
+        AL = np.where(AL == 1, AL-1e-10, AL )
         return np.where(Y == 0, 1/(1-AL), -1/AL)
 
     def categorical_cross_entropy(self, AL, Y):
@@ -188,7 +192,7 @@ class DLModel:
         shuffled_Y = Y[:, permutation].reshape((-1,m))
         num_complete_minibatches = math.floor(m/mini_batch_size)
         mini_batches = []
-        for k in range(num_complete_minibatches+1):
+        for k in range(num_complete_minibatches if m==mini_batch_size else num_complete_minibatches+1):
             mini_batch_X = shuffled_X[:, mini_batch_size*k : (k+1) * mini_batch_size]
             mini_batch_Y = shuffled_Y[:, mini_batch_size*k : (k+1) * mini_batch_size]
             mini_batch = (mini_batch_X, mini_batch_Y)
