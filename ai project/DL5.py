@@ -186,7 +186,6 @@ class DLModel:
     @staticmethod
     def random_mini_batches(X, Y, mini_batch_size=64, seed=0):
         np.random.seed(seed)
-        print(Y.shape)
         m = Y.shape[1]
         permutation = list(np.random.permutation(m))
         shuffled_X = X[:, permutation]
