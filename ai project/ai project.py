@@ -8,40 +8,38 @@ from PIL import Image, ImageOps
 import sklearn
 import sklearn.datasets
 import scipy.io
-from unit10 import utils as u10
+from unit10 import c2w2_utils as u10
 import h5py
 import random as rnd
 import data_sender
-from DL5 import *
+from DL6 import *
 import time
 
 def main():
     plt.rcParams['figure.figsize'] = (7.0, 4.0) # set default size of plots
     plt.rcParams['image.interpolation'] = 'nearest'
     plt.rcParams['image.cmap'] = 'gray'
-    train_X, train_Y = u10.load_minibatch_dataset()
+    np.random.seed(1)
+    train_X, train_Y = u10.load_dataset()
+    plt.show() 
+    np.random.seed(1)
+    model = DLModel("Model with mini batches and adam")
+    model.add(DLLayer("Hidden 1", 5,(train_X.shape[0],),"relu","He", 0.007, optimization="adam"))
+    model.add(DLLayer("Hidden 2", 2,(5,),"relu","He", 0.007, optimization="adam"))
+    model.add(DLLayer("Output", 1,(2,),"sigmoid","He", 0.007, optimization="adam"))
+    model.compile("cross_entropy")
+    costs = model.train(train_X, train_Y, 500)
+    plt.plot(costs)
     plt.show()
-    model = DLModel("model")
-    model.add(DLLayer("1", 64, (train_X.shape[0], ), "relu", "He", 0.05, regularization="L2"))
-    model.add(DLLayer("2", 32, (64, ), "relu", "He", 0.05, regularization="L2"))
-    model.add(DLLayer("3", 5, (32, ), "relu", "He", 0.05, regularization="L2"))
-    model.add(DLLayer("4", 1, (5, ), "sigmoid", "He", 0.05))
-    model.compile("cross_entropy", 0.7)
-    num_epochs = 4000
-    minibatch_size = 64
-    tic = time.time()
-    costs = model.train(train_X, train_Y, num_epochs, minibatch_size)
-    toc = time.time()
-    print (f"time (ms): {1000*(toc-tic)}")
-    u10.print_costs(costs,num_epochs)
-    train_predict = model.forward_propagation(train_X) > 0.7
+    train_predict = model.predict(train_X)
     accuracy = np.sum(train_predict == train_Y)/train_X.shape[1]
     print("accuracy:", str(accuracy))
-    #plt.title("Model with no mini batches")
+    plt.title(model.name)
     axes = plt.gca()
     axes.set_xlim([-1.5,2.5])
     axes.set_ylim([-1,1.5])
     u10.plot_decision_boundary(model, train_X, train_Y)
+
     return
     
 
