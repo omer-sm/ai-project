@@ -5,7 +5,7 @@
     <ProjectGuid>5bb35e1a-ffa7-4d05-b72d-507227aff6f9</ProjectGuid>
     <ProjectHome>
     </ProjectHome>
-    <StartupFile>ai project.py</StartupFile>
+    <StartupFile>notes_test.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -19,6 +19,7 @@
     <UnitTestPattern>test*.py</UnitTestPattern>
     <UnitTestRootDirectory>.</UnitTestRootDirectory>
     <SuppressConfigureTestFrameworkPrompt>true</SuppressConfigureTestFrameworkPrompt>
+    <InterpreterId>Global|PythonCore|3.10</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -30,6 +31,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ai project.py" />
+    <Compile Include="DL7.py" />
     <Compile Include="DL6.py" />
     <Compile Include="DL5.py" />
     <Compile Include="DL4.py" />
@@ -44,6 +46,9 @@
     <Compile Include="DL1.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="notes_test.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="TestGrad.py">
       <SubType>Code</SubType>
     </Compile>
@@ -56,6 +61,9 @@
     <Compile Include="vector.py">
       <SubType>Code</SubType>
     </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <InterpreterReference Include="Global|PythonCore|3.10" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

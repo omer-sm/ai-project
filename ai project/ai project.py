@@ -12,8 +12,9 @@ from unit10 import c2w2_utils as u10
 import h5py
 import random as rnd
 import data_sender
-from DL6 import *
+from DL7 import *
 import time
+from cupyx.profiler import benchmark
 
 def main():
     plt.rcParams['figure.figsize'] = (7.0, 4.0) # set default size of plots
@@ -21,14 +22,17 @@ def main():
     plt.rcParams['image.cmap'] = 'gray'
     np.random.seed(1)
     train_X, train_Y = u10.load_dataset()
-    plt.show() 
-    np.random.seed(1)
-    model = DLModel("Model with mini batches and adam")
-    model.add(DLLayer("Hidden 1", 5,(train_X.shape[0],),"relu","He", 0.007, optimization="adam"))
-    model.add(DLLayer("Hidden 2", 2,(5,),"relu","He", 0.007, optimization="adam"))
-    model.add(DLLayer("Output", 1,(2,),"sigmoid","He", 0.007, optimization="adam"))
+    train_X = cp.asarray(train_X)
+    train_Y = cp.asarray(train_Y)
+    #plt.show()
+    #np.random.seed(1)
+    model = DLModel("Model with mini batches and adam", use_cuda=True)
+    model.add(DLLayer("Hidden 1", 1000,(train_X.shape[0],),"relu","He", 0.007, optimization="adam"))
+    model.add(DLLayer("Hidden 2", 500,(1000,),"relu","He", 0.007, optimization="adam"))
+    model.add(DLLayer("Hidden 3", 200,(500,),"relu","He", 0.007, optimization="adam"))
+    model.add(DLLayer("Output", 1,(200,),"sigmoid","He", 0.007, optimization="adam"))
     model.compile("cross_entropy")
-    costs = model.train(train_X, train_Y, 500)
+    costs = model.train(train_X, train_Y, 10)
     plt.plot(costs)
     plt.show()
     train_predict = model.predict(train_X)
@@ -38,7 +42,7 @@ def main():
     axes = plt.gca()
     axes.set_xlim([-1.5,2.5])
     axes.set_ylim([-1,1.5])
-    u10.plot_decision_boundary(model, train_X, train_Y)
+    u10.plot_decision_boundary(model, cp.asnumpy(train_X), cp.asnumpy(train_Y))
 
     return
     

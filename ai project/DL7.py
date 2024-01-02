@@ -4,14 +4,20 @@ import os
 import h5py
 from sklearn.metrics import classification_report, confusion_matrix
 import math
+import cupy as cp
+
+xp = np
 
 class DLModel:
-    def __init__(self, name="Model", inject_str_func=None):
+
+    def __init__(self, name="Model", inject_str_func=None, use_cuda=False):
         self.name = name
         self.layers = [None]
         self._is_compiled = False
         self.inject_str_func = inject_str_func
-
+        self.use_cuda = use_cuda
+        global xp
+        xp = cp if use_cuda else np
 
     def __str__(self):
         s = self.name + " description:\n\tnum_layers: " + str(len(self.layers)-1) +"\n"
@@ -33,17 +39,18 @@ class DLModel:
         return -2*(Y-AL)
 
     def cross_entropy(self, AL, Y):
-        AL = np.where(AL == 0, AL+1e-10, AL )
-        AL = np.where(AL == 1, AL-1e-10, AL )
-        return np.where(Y == 0, -np.log(1-AL), -np.log(AL))
+        AL = xp.where(AL == 0, AL+1e-10, AL )
+        AL = xp.where(AL == 1, AL-1e-10, AL )
+        return xp.where(Y == 0, -xp.log(1-AL), -xp.log(AL))
 
     def cross_entropy_backward(self, AL, Y):
-        AL = np.where(AL == 0, AL+1e-10, AL )
-        AL = np.where(AL == 1, AL-1e-10, AL )
-        return np.where(Y == 0, 1/(1-AL), -1/AL)
+        AL = xp.where(AL == 0, AL+1e-10, AL )
+        AL = xp.where(AL == 1, AL-1e-10, AL )
+        return xp.where(Y == 0, 1/(1-AL), -1/AL)
 
     def categorical_cross_entropy(self, AL, Y):
-        return np.where(Y == 1, -np.log(AL), 0)
+        AL = xp.where(AL <= 0, 1e-10, AL )
+        return xp.where(Y == 1, -xp.log(AL), 0)
 
     def categorical_cross_entropy_backward(self, AL, Y):
         return AL - Y
@@ -69,7 +76,10 @@ class DLModel:
         regularization_costs = 0
         for l in range(1, len(self.layers)):
             regularization_costs += self.layers[l].regularization_cost(m)
-        return np.sum(costs)/m + regularization_costs
+        cost = xp.sum(costs)/m + regularization_costs
+        if self.use_cuda:
+            cost = cost.item()
+        return cost
 
     def train(self, X, Y, num_epochs, mini_batch_size=0):
         print_ind = max(num_epochs // 100, 1)
@@ -86,6 +96,7 @@ class DLModel:
                 Yk = mini_batches[k][1]
                 for l in range(1, L):
                     Al = self.layers[l].forward_propagation(Al, True)
+                    #print(xp.isnan(Al).any())
                 #backward propagation
                 dAl = self.loss_backward(Al, Yk)
                 for l in reversed(range(1, L)):
@@ -108,15 +119,15 @@ class DLModel:
         for l in range(1, len(self.layers)):
                 Al = self.layers[l].forward_propagation(Al, False)
         if self.loss == self.categorical_cross_entropy:
-            return np.where(Al==Al.max(axis=0),1,0)
-        return np.where(Al > self.threshold, 1, 0)
+            return xp.where(Al==Al.max(axis=0),1,0)
+        return xp.where(Al > self.threshold, 1, 0)
 
     def forward_propagation(self, X):
         Al = X
         for l in range(1, len(self.layers)):
                 Al = self.layers[l].forward_propagation(Al, False)
         if self.loss == self.categorical_cross_entropy:
-            return np.where(Al==Al.max(axis=0),1,0)
+            return xp.where(Al==Al.max(axis=0),1,0)
         return Al
 
     def save_weights(self, path):
@@ -141,9 +152,9 @@ class DLModel:
             params_vec = self.layers[l].params_to_vec()
             grad_vec = self.layers[l].gradients_to_vec()
             n = len(params_vec)
-            approx = np.zeros((n,), dtype=float)
+            approx = xp.zeros((n,), dtype=float)
             for i in range(n):
-                v = np.copy(params_vec)
+                v = xp.copy(params_vec)
                 v[i] += epsilon
                 self.layers[l].vec_to_params(v)
                 Al = X
@@ -158,7 +169,7 @@ class DLModel:
                 j_minus = self.compute_cost(Al, Y) 
                 approx[i] = j_plus-j_minus
             approx /= (2*epsilon) 
-            diff = (np.linalg.norm(grad_vec-approx))/((np.linalg.norm(grad_vec))+(np.linalg.norm(approx)))
+            diff = (xp.linalg.norm(grad_vec-approx))/((xp.linalg.norm(grad_vec))+(xp.linalg.norm(approx)))
             check = (diff < epsilon)
             self.layers[l].vec_to_params(params_vec)
             print(diff)
@@ -173,24 +184,30 @@ class DLModel:
     def to_one_hot(num_categories, Y):
         m = Y.shape[0]
         Y = Y.reshape(1, m)
-        Y_new = np.eye(num_categories)[Y.astype('int32')]
+        Y_new = xp.eye(num_categories)[Y.astype('int32')]
         Y_new = Y_new.T
         Y_new = Y_new.reshape(num_categories, m)
         return Y_new
 
     def confusion_matrix(self, X, Y):
+        '''prediction = self.predict(X)
+        prediction_index = xp.argmax(prediction, axis=0)
+        Y_index = xp.argmax(Y, axis=0)
+        right = xp.sum(prediction_index == Y_index)
+        print("accuracy: ",str(right/len(Y[0])))
+        print(confusion_matrix(prediction_index, Y_index))'''
         prediction = self.predict(X)
-        prediction_index = np.argmax(prediction, axis=0)
-        Y_index = np.argmax(Y, axis=0)
-        right = np.sum(prediction_index == Y_index)
+        prediction_index = np.argmax(cp.asnumpy(prediction), axis=0)
+        Y_index = np.argmax(cp.asnumpy(Y), axis=0)
+        right = xp.sum(xp.array(prediction_index) == xp.array(Y_index))
         print("accuracy: ",str(right/len(Y[0])))
         print(confusion_matrix(prediction_index, Y_index))
 
     @staticmethod
     def random_mini_batches(X, Y, mini_batch_size=64, seed=0):
-        np.random.seed(seed)
+        xp.random.seed(seed)
         m = Y.shape[1]
-        permutation = list(np.random.permutation(m))
+        permutation = list(xp.random.permutation(m))
         shuffled_X = X[:, permutation]
         shuffled_Y = Y[:, permutation].reshape((-1,m))
         num_complete_minibatches = math.floor(m/mini_batch_size)
@@ -237,19 +254,19 @@ class DLLayer:
                 self.activation_backward = func
                 break
         if optimization == "adaptive":
-            self._adaptive_alpha_b = np.full((self._num_units, 1), self.alpha)
-            self._adaptive_alpha_W = np.full((self._num_units, *(self._input_shape)),self.alpha)
+            self._adaptive_alpha_b = xp.full((self._num_units, 1), self.alpha)
+            self._adaptive_alpha_W = xp.full((self._num_units, *(self._input_shape)),self.alpha)
             self.adaptive_cont = 1.1
             self.adaptive_switch = -0.5
         elif optimization == "momentum":
-            self._v_dW = np.zeros((self._num_units, *(self._input_shape)), dtype=float)
-            self._v_db = np.zeros((self._num_units,1), dtype=float)
+            self._v_dW = xp.zeros((self._num_units, *(self._input_shape)), dtype=float)
+            self._v_db = xp.zeros((self._num_units,1), dtype=float)
             self.momentum_beta = 0.09
         elif optimization == "adam":
-            self._adam_v_dW = np.zeros((self._num_units, *(self._input_shape)), dtype=float)
-            self._adam_v_db = np.zeros((self._num_units,1), dtype=float)
-            self._adam_s_dW = np.zeros((self._num_units, *(self._input_shape)), dtype=float)
-            self._adam_s_db = np.zeros((self._num_units,1), dtype=float)
+            self._adam_v_dW = xp.zeros((self._num_units, *(self._input_shape)), dtype=float)
+            self._adam_v_db = xp.zeros((self._num_units,1), dtype=float)
+            self._adam_s_dW = xp.zeros((self._num_units, *(self._input_shape)), dtype=float)
+            self._adam_s_db = xp.zeros((self._num_units,1), dtype=float)
             self.adam_beta1 = 0.09
             self.adam_beta2 = 0.0999
             self.adam_epsilon = 1e-8
@@ -260,15 +277,15 @@ class DLLayer:
         self.init_weights(W_initialization)
 
     def init_weights(self, W_initialization):
-        self.b = np.zeros((self._num_units,1), dtype=float)
+        self.b = xp.zeros((self._num_units,1), dtype=float)
         if W_initialization == "zeros":
-            self.W = np.zeros((self._num_units, *(self._input_shape)), dtype=float)
+            self.W = xp.zeros((self._num_units, *(self._input_shape)), dtype=float)
         elif W_initialization == "He":
-            self.W = np.random.randn(self._num_units, *(self._input_shape)) * np.sqrt(2/self._input_shape[0])
+            self.W = xp.random.randn(self._num_units, *(self._input_shape)) * xp.sqrt(2/self._input_shape[0])
         elif W_initialization == "Xavier":
-            self.W = np.random.randn(self._num_units, *(self._input_shape)) * np.sqrt(1/self._input_shape[0])
+            self.W = xp.random.randn(self._num_units, *(self._input_shape)) * xp.sqrt(1/self._input_shape[0])
         elif W_initialization == "random":
-            self.W = np.random.randn(self._num_units, *(self._input_shape)) * self.random_scale
+            self.W = xp.random.randn(self._num_units, *(self._input_shape)) * self.random_scale
         else: 
             try:
                 with h5py.File(W_initialization, 'r') as hf:
@@ -305,62 +322,65 @@ class DLLayer:
         return s
         
     def _sigmoid(self, Z):
-        return 1/(1+np.exp(-Z)) 
+        return 1/(1+xp.exp(-Z)) 
 
     def _tanh(self, Z):
-        return np.tanh(Z)
+        return xp.tanh(Z)
 
     def _relu(self, Z):
-        return np.maximum(0, Z)
+        return xp.maximum(0, Z)
 
     def _leaky_relu(self, Z):
-        return np.where(Z > 0, Z, Z * self.leaky_relu_d)
+        return xp.where(Z > 0, Z, Z * self.leaky_relu_d)
 
     def _softmax(self, Z):
-        eZ = np.exp(Z)
-        return eZ/np.sum(eZ, 0)
+        eZ = xp.exp(Z)
+        return eZ/xp.sum(eZ, 0)
 
     def _trim_softmax(self, Z):
         with np.errstate(over='raise', divide='raise'):
             try:
-                eZ = np.exp(Z)
+                eZ = xp.exp(Z)
             except FloatingPointError:
-                Z = np.where(Z > 100, 100,Z)
-                eZ = np.exp(Z)
-        A = eZ/np.sum(eZ, axis=0)
+                Z = xp.where(Z > 100, 100,Z)
+                eZ = xp.exp(Z)
+        if xp.any(eZ < 1e-75) or xp.any(eZ > 1e+75):
+            Z -= xp.max(Z, axis=0)
+            eZ = xp.exp(Z)
+        A = eZ/xp.sum(eZ, axis=0)
         return A
 
     def _trim_sigmoid(self,Z):
-        with np.errstate(over='raise', divide='raise'):
+        with xp.errstate(over='raise', divide='raise'):
             try:
-                A = 1/(1+np.exp(-Z))
+                A = 1/(1+xp.exp(-Z))
             except FloatingPointError:
-                Z = np.where(Z < -100, -100,Z)
-                A = A = 1/(1+np.exp(-Z))
+                Z = xp.where(Z < -100, -100,Z)
+                A = A = 1/(1+xp.exp(-Z))
         TRIM = self.activation_trim
         if TRIM > 0:
-            A = np.where(A < TRIM,TRIM,A)
-            A = np.where(A > 1-TRIM,1-TRIM, A)
+            A = xp.where(A < TRIM,TRIM,A)
+            A = xp.where(A > 1-TRIM,1-TRIM, A)
         return A
 
     def _trim_tanh(self,Z):
-        A = np.tanh(Z)
+        A = xp.tanh(Z)
         TRIM = self.activation_trim
         if TRIM > 0:
-            A = np.where(A < -1+TRIM,TRIM,A)
-            A = np.where(A > 1-TRIM,1-TRIM, A)
+            A = xp.where(A < -1+TRIM,TRIM,A)
+            A = xp.where(A > 1-TRIM,1-TRIM, A)
         return A
 
     def forward_propagation(self, A_prev, is_train):
         self._A_prev = self.forward_dropout(A_prev, is_train)
-        self._Z = np.dot(self.W, self._A_prev) + self.b
+        self._Z = xp.dot(self.W, self._A_prev) + self.b
         A = self.activation_forward(self._Z)
         return A
 
     def forward_dropout(self, A_prev, is_train):
-        A_prev_copy = np.array(A_prev, copy=True)
+        A_prev_copy = xp.array(A_prev, copy=True)
         if is_train == True and self.regularization == "dropout":
-            self._D = np.random.rand(1, A_prev.shape[0]) < self.dropout_keep_prob
+            self._D = xp.random.rand(1, A_prev.shape[0]) < self.dropout_keep_prob
             self._D = self._D.T
             A_prev_copy *= self._D
             A_prev_copy /= self.dropout_keep_prob
@@ -382,15 +402,15 @@ class DLLayer:
         return dZ
 
     def _tanh_backward(self, dA):
-        dZ = (1 - np.tanh(self._Z)**2) * dA
+        dZ = (1 - xp.tanh(self._Z)**2) * dA
         return dZ
 
     def _relu_backward(self,dA):
-        dZ = np.where(self._Z <= 0, 0, dA)
+        dZ = xp.where(self._Z <= 0, 0, dA)
         return dZ
 
     def _leaky_relu_backward(self, dA):
-        dZ = np.where(self._Z <= 0, dA * self.leaky_relu_d, dA)
+        dZ = xp.where(self._Z <= 0, dA * self.leaky_relu_d, dA)
         return dZ
     
     def _softmax_backward(self, dZ):
@@ -402,7 +422,7 @@ class DLLayer:
     def backward_propagation(self, dA):
         dZ = self.activation_backward(dA)
         m = dZ.shape[1]
-        self.db = np.sum(dZ , axis=1, keepdims=True)/m
+        self.db = xp.sum(dZ , axis=1, keepdims=True)/m
         self.dW = ((dZ @ (self._A_prev.T)) + self.L2_lambda * self.W)/m
         dA_Prev = self.W.T @ dZ
         dA_Prev = self.backward_dropout(dA_Prev)
@@ -417,7 +437,7 @@ class DLLayer:
     def regularization_cost(self, m):
         if self.regularization != "L2":
             return 0 
-        W_square_sum = np.sum(np.square(self.W))
+        W_square_sum = xp.sum(xp.square(self.W))
         return self.L2_lambda * W_square_sum / (2 * m)
 
     def update_parameters(self, t=1):
@@ -425,8 +445,8 @@ class DLLayer:
             self.W -= self.dW * self.alpha
             self.b -= self.db * self.alpha
         elif self._optimization == "adaptive":
-            self._adaptive_alpha_W *= np.where(self._adaptive_alpha_W * self.dW > 0, self.adaptive_cont, self.adaptive_switch)
-            self._adaptive_alpha_b *= np.where(self._adaptive_alpha_b * self.db > 0, self.adaptive_cont, self.adaptive_switch)
+            self._adaptive_alpha_W *= xp.where(self._adaptive_alpha_W * self.dW > 0, self.adaptive_cont, self.adaptive_switch)
+            self._adaptive_alpha_b *= xp.where(self._adaptive_alpha_b * self.db > 0, self.adaptive_cont, self.adaptive_switch)
             self.W -= self._adaptive_alpha_W
             self.b -= self._adaptive_alpha_b
         elif self._optimization == "momentum":
@@ -439,8 +459,8 @@ class DLLayer:
             self._adam_v_db = (self.adam_beta1 * self._adam_v_db + (1-self.adam_beta1) * self.db)/(1-self.adam_beta1**t)
             self._adam_s_dW = (self.adam_beta2 * self._adam_s_dW + (1-self.adam_beta2) * self.dW**2)/(1-self.adam_beta2**t)
             self._adam_s_db = (self.adam_beta2 * self._adam_s_db + (1-self.adam_beta2) * self.db**2)/(1-self.adam_beta2**t)
-            self.W -= self.alpha * self._adam_v_dW / np.sqrt(self._adam_s_dW + self.adam_epsilon)
-            self.b -= self.alpha * self._adam_v_db / np.sqrt(self._adam_s_db + self.adam_epsilon)
+            self.W -= self.alpha * self._adam_v_dW / xp.sqrt(self._adam_s_dW + self.adam_epsilon)
+            self.b -= self.alpha * self._adam_v_db / xp.sqrt(self._adam_s_db + self.adam_epsilon)
 
     def save_weights(self, path, file_name):
         if not os.path.exists(path):
@@ -450,12 +470,12 @@ class DLLayer:
             hf.create_dataset("b", data=self.b)
 
     def params_to_vec(self):
-        return np.concatenate((np.reshape(self.W,(-1,)),np.reshape(self.b, (-1,))), axis=0)
+        return xp.concatenate((xp.reshape(self.W,(-1,)),xp.reshape(self.b, (-1,))), axis=0)
 
     def vec_to_params(self, vec):
         self.W = vec[0:self.W.size].reshape(self.W.shape)
         self.b = vec[self.W.size:].reshape(self.b.shape)
 
     def gradients_to_vec(self):
-        return np.concatenate((np.reshape(self.dW,(-1,)),np.reshape(self.db, (-1,))), axis=0)
+        return xp.concatenate((xp.reshape(self.dW,(-1,)),xp.reshape(self.db, (-1,))), axis=0)
 
