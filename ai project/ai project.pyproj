@@ -46,6 +46,9 @@
     <Compile Include="DL1.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="autoencoder test.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="notes_test.py">
       <SubType>Code</SubType>
     </Compile>

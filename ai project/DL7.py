@@ -118,7 +118,7 @@ class DLModel:
         Al = X
         for l in range(1, len(self.layers)):
                 Al = self.layers[l].forward_propagation(Al, False)
-        if self.loss == self.categorical_cross_entropy:
+        if self.loss_forward == self.categorical_cross_entropy:
             return xp.where(Al==Al.max(axis=0),1,0)
         return xp.where(Al > self.threshold, 1, 0)
 
@@ -130,9 +130,9 @@ class DLModel:
             return xp.where(Al==Al.max(axis=0),1,0)
         return Al
 
-    def save_weights(self, path):
+    def save_weights(self, path, is_cupy):
         for l in range(1, len(self.layers)):
-            self.layers[l].save_weights(path, "Layer{i}".format(i = l))
+            self.layers[l].save_weights(path, "Layer{i}".format(i = l), is_cupy)
 
     def check_backward_propagation(self, X, Y, epsilon=1e-7):
         L = len(self.layers)
@@ -237,7 +237,7 @@ class DLLayer:
         self.random_scale = 0.01
         self._input_shape = input_shape
         self.regularization = regularization
-        self.L2_lambda = 0
+        self.L2_lambda = 0.
         if activation == "leaky_relu":
             self.leaky_relu_d = 0.01
         if activation[:4] == "trim":
@@ -271,7 +271,7 @@ class DLLayer:
             self.adam_beta2 = 0.0999
             self.adam_epsilon = 1e-8
         if regularization == "L2":
-            self.L2_lambda = 0.6
+            self.L2_lambda = 4.6
         elif regularization == "dropout":
             self.dropout_keep_prob = keep_prob
         self.init_weights(W_initialization)
@@ -289,8 +289,8 @@ class DLLayer:
         else: 
             try:
                 with h5py.File(W_initialization, 'r') as hf:
-                    self.W = hf['W'][:]
-                    self.b = hf['b'][:]
+                    self.W = xp.array(hf['W'][:])
+                    self.b = xp.array(hf['b'][:])
             except (FileNotFoundError):
                 raise NotImplementedError("Unrecognized initialization:", W_initialization)
     def __str__(self):
@@ -338,15 +338,8 @@ class DLLayer:
         return eZ/xp.sum(eZ, 0)
 
     def _trim_softmax(self, Z):
-        with np.errstate(over='raise', divide='raise'):
-            try:
-                eZ = xp.exp(Z)
-            except FloatingPointError:
-                Z = xp.where(Z > 100, 100,Z)
-                eZ = xp.exp(Z)
-        if xp.any(eZ < 1e-75) or xp.any(eZ > 1e+75):
-            Z -= xp.max(Z, axis=0)
-            eZ = xp.exp(Z)
+        Z -= xp.max(Z, axis=0)
+        eZ = xp.exp(Z)
         A = eZ/xp.sum(eZ, axis=0)
         return A
 
@@ -462,12 +455,16 @@ class DLLayer:
             self.W -= self.alpha * self._adam_v_dW / xp.sqrt(self._adam_s_dW + self.adam_epsilon)
             self.b -= self.alpha * self._adam_v_db / xp.sqrt(self._adam_s_db + self.adam_epsilon)
 
-    def save_weights(self, path, file_name):
+    def save_weights(self, path, file_name, is_cupy=False):
         if not os.path.exists(path):
             os.makedirs(path)
         with h5py.File(path+"/"+file_name+'.h5', 'w') as hf:
-            hf.create_dataset("W", data=self.W)
-            hf.create_dataset("b", data=self.b)
+            if is_cupy:
+                hf.create_dataset("W", data=cp.asnumpy(self.W))
+                hf.create_dataset("b", data=cp.asnumpy(self.b))
+            else:
+                hf.create_dataset("W", data=self.W)
+                hf.create_dataset("b", data=self.b)
 
     def params_to_vec(self):
         return xp.concatenate((xp.reshape(self.W,(-1,)),xp.reshape(self.b, (-1,))), axis=0)
