@@ -30,6 +30,8 @@ class DLModel:
         return s
 
     def add(self, layer):
+        if layer._activation == "vae_bottleneck":
+            self.bottleneck_layer = len(self.layers)
         self.layers.append(layer)
 
     def squared_means(self, AL, Y):
@@ -55,16 +57,33 @@ class DLModel:
     def categorical_cross_entropy_backward(self, AL, Y):
         return AL - Y
 
-    def compile(self, loss, threshold=0.5):
-        if loss not in ["cross_entropy", "squared_means", "categorical_cross_entropy"]:
-            raise Exception(f"invalid value: loss must be either 'cross_entropy', 'categorical_cross_entropy' or 'squared_means'. (is currently {loss})")
+    def cross_entropy_KLD(self, AL, Y):
+        CE = self.cross_entropy(AL, Y) * self.recon_loss_weight
+        logvar = self.layers[self.bottleneck_layer].logvar
+        mu = self.layers[self.bottleneck_layer].mu
+        KL = -xp.sum(1 + xp.log(logvar**2) - mu**2 - logvar**2)
+        CE[0][0] += KL 
+        return CE
+
+    def cross_entropy_KLD_backward(self, AL, Y):
+        grad_CE = self.cross_entropy_backward(AL, Y) * self.recon_loss_weight
+        logvar = self.layers[self.bottleneck_layer].logvar
+        dLogvar = -(2 / logvar - 2 * logvar)
+        self.layers[self.bottleneck_layer].dLogvar = dLogvar
+        return grad_CE
+
+
+    def compile(self, loss, threshold=0.5, recon_loss_weight=1.):
+        if loss not in ["cross_entropy", "squared_means", "categorical_cross_entropy", "cross_entropy_KLD"]:
+            raise Exception(f"invalid value: loss must be either 'cross_entropy', 'categorical_cross_entropy', 'cross_entropy_KLD' or 'squared_means'. (is currently {loss})")
         self.loss = loss
+        self.recon_loss_weight = recon_loss_weight
         self.threshold = threshold
         self.is_train = False
-        for func in [self.squared_means, self.cross_entropy, self.categorical_cross_entropy]:
+        for func in [self.squared_means, self.cross_entropy, self.categorical_cross_entropy, self.cross_entropy_KLD]:
             if func.__name__ == loss:
                 self.loss_forward = func
-        for func in [self.squared_means_backward, self.cross_entropy_backward, self.categorical_cross_entropy_backward]:
+        for func in [self.squared_means_backward, self.cross_entropy_backward, self.categorical_cross_entropy_backward, self.cross_entropy_KLD_backward]:
             if func.__name__[:-9] == loss:
                 self.loss_backward = func
         self._is_compiled = True
@@ -221,14 +240,17 @@ class DLModel:
 
 class DLLayer:
     def __init__ (self, name, num_units, input_shape: tuple, activation="relu", 
-                  W_initialization="random", alpha=0.01, optimization=None, regularization=None, keep_prob=0.6):
-        if activation not in ["sigmoid", "tanh", "relu", "leaky_relu", "softmax", "trim_sigmoid", "trim_tanh", "trim_softmax"]: 
-            raise Exception(f"invalid value: activation must be either 'sigmoid', 'trim_sigmoid', 'tanh', 'trim_tanh', 'relu', 'leaky_relu', 'softmax' or 'trim_softmax'. (is currently {activation})")
+                  W_initialization="random", alpha=0.01, optimization=None, regularization=None, keep_prob=0.6, samples_per_dim=1):
+        if activation not in ["sigmoid", "tanh", "relu", "leaky_relu", "softmax", "trim_sigmoid", "trim_tanh", "trim_softmax", "vae_bottleneck"]: 
+            raise Exception(f"invalid value: activation must be either 'sigmoid', 'trim_sigmoid', 'tanh', 'trim_tanh', 'relu', 'leaky_relu', 'softmax', 'trim_softmax' or , 'vae_bottleneck'. (is currently {activation})")
         if W_initialization not in ["random", "zeros", "He", "Xavier"] and W_initialization[-3:] != ".h5":
             print(f"Warning: W_initialization is currently {W_initialization}, which may be incorrect. it should be either 'random', 'He', 'Xavier', 'zeros' or a path to a .h5 file.")
         if not (optimization is None) and optimization not in ["adaptive", "momentum", "adam"]:
             raise Exception(f"invalid value: optimization must be either None, 'adaptive', 'adam' or 'momentum'. (is currently {optimization})")
+        if activation == "vae_bottleneck" and num_units % 2 != 0:
+            raise Exception(f"invalid value: 'vae_bottleneck' layers can only have an even input shape n. (is currently {input_shape})")
         self.name = name
+        self._samples_per_dim = samples_per_dim
         self._num_units = num_units
         self._activation = activation
         self.W_initialization = W_initialization
@@ -243,13 +265,13 @@ class DLLayer:
         if activation[:4] == "trim":
             self.activation_trim = 1e-10
         for func in [self._sigmoid, self._trim_sigmoid, self._tanh, self._trim_tanh, self._relu, self._leaky_relu,
-                    self._softmax, self._trim_softmax]:
+                    self._softmax, self._trim_softmax, self._vae_bottleneck]:
             if func.__name__[1:] == activation:
                 self.activation_forward = func
                 break
         for func in [self._sigmoid_backward, self._tanh_backward, self._relu_backward, 
                      self._leaky_relu_backward, self._trim_tanh_backward, self._trim_sigmoid_backward,
-                    self._softmax_backward, self._trim_softmax_backward]:
+                    self._softmax_backward, self._trim_softmax_backward, self._vae_bottleneck_backward]:
             if func.__name__[1:-9] == activation:
                 self.activation_backward = func
                 break
@@ -364,6 +386,19 @@ class DLLayer:
             A = xp.where(A > 1-TRIM,1-TRIM, A)
         return A
 
+    def _vae_bottleneck(self,Z):
+        n = Z.shape[0]
+        self.mu = Z[:n//2, :]
+        self.logvar = Z[n//2:, :]
+        #reparameterization trick
+        self._vae_epsilon = xp.random.standard_normal(size=(n//2, Z.shape[1]))
+        rand_sample = self.mu + xp.log(self.logvar**2) * xp.random.standard_normal(size=(n//2, Z.shape[1]))
+        for i in range(1, self._samples_per_dim):
+            extra_sample = self.mu + xp.log(self.logvar**2) * xp.random.standard_normal(size=(n//2, Z.shape[1]))
+            rand_sample = xp.concatenate((rand_sample, extra_sample), axis=0)
+        return rand_sample
+
+
     def forward_propagation(self, A_prev, is_train):
         self._A_prev = self.forward_dropout(A_prev, is_train)
         self._Z = xp.dot(self.W, self._A_prev) + self.b
@@ -410,6 +445,12 @@ class DLLayer:
         return dZ
 
     def _trim_softmax_backward(self, dZ):
+        return dZ
+
+    def _vae_bottleneck_backward(self, dA):
+        dA = dA.reshape(dA.shape[0] // self._samples_per_dim, self._samples_per_dim, dA.shape[1])
+        dA = xp.mean(dA, axis=1)
+        dZ = xp.concatenate((dA + 2*self.mu, self._vae_epsilon * dA + self.dLogvar), axis=0)
         return dZ
 
     def backward_propagation(self, dA):
