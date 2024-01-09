@@ -72,18 +72,33 @@ class DLModel:
         self.layers[self.bottleneck_layer].dLogvar = dLogvar
         return grad_CE
 
+    def squared_means_KLD(self, AL, Y):
+        SM = self.squared_means(AL, Y) * self.recon_loss_weight
+        logvar = self.layers[self.bottleneck_layer].logvar
+        mu = self.layers[self.bottleneck_layer].mu
+        KL = -xp.sum(1 + xp.log(logvar**2) - mu**2 - logvar**2)
+        SM[0][0] += KL 
+        return SM
+
+    def squared_means_KLD_backward(self, AL, Y):
+        grad_SM = self.squared_means_backward(AL, Y) * self.recon_loss_weight
+        logvar = self.layers[self.bottleneck_layer].logvar
+        dLogvar = -(2 / logvar - 2 * logvar)
+        self.layers[self.bottleneck_layer].dLogvar = dLogvar
+        return grad_SM
+
 
     def compile(self, loss, threshold=0.5, recon_loss_weight=1.):
-        if loss not in ["cross_entropy", "squared_means", "categorical_cross_entropy", "cross_entropy_KLD"]:
-            raise Exception(f"invalid value: loss must be either 'cross_entropy', 'categorical_cross_entropy', 'cross_entropy_KLD' or 'squared_means'. (is currently {loss})")
+        if loss not in ["cross_entropy", "squared_means", "categorical_cross_entropy", "cross_entropy_KLD", "squared_means_KLD"]:
+            raise Exception(f"invalid value: loss must be either 'cross_entropy', 'categorical_cross_entropy', 'cross_entropy_KLD', 'squared_means_KLD' or 'squared_means'. (is currently {loss})")
         self.loss = loss
         self.recon_loss_weight = recon_loss_weight
         self.threshold = threshold
         self.is_train = False
-        for func in [self.squared_means, self.cross_entropy, self.categorical_cross_entropy, self.cross_entropy_KLD]:
+        for func in [self.squared_means, self.cross_entropy, self.categorical_cross_entropy, self.cross_entropy_KLD, self.squared_means_KLD]:
             if func.__name__ == loss:
                 self.loss_forward = func
-        for func in [self.squared_means_backward, self.cross_entropy_backward, self.categorical_cross_entropy_backward, self.cross_entropy_KLD_backward]:
+        for func in [self.squared_means_backward, self.cross_entropy_backward, self.categorical_cross_entropy_backward, self.cross_entropy_KLD_backward, self.squared_means_KLD_backward]:
             if func.__name__[:-9] == loss:
                 self.loss_backward = func
         self._is_compiled = True
