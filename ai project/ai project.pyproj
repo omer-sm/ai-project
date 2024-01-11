@@ -5,7 +5,7 @@
     <ProjectGuid>5bb35e1a-ffa7-4d05-b72d-507227aff6f9</ProjectGuid>
     <ProjectHome>
     </ProjectHome>
-    <StartupFile>ai project.py</StartupFile>
+    <StartupFile>autoencoder test.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
