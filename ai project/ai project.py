@@ -12,37 +12,22 @@ from unit10 import c2w2_utils as u10
 import h5py
 import random as rnd
 import data_sender
-from DL7 import *
+from DL9 import *
 import time
-from cupyx.profiler import benchmark
 
 def main():
-    plt.rcParams['figure.figsize'] = (7.0, 4.0) # set default size of plots
+    plt.rcParams['figure.figsize'] = (5.0, 4.0) 
+    # set default size of plots
     plt.rcParams['image.interpolation'] = 'nearest'
     plt.rcParams['image.cmap'] = 'gray'
     np.random.seed(1)
-    train_X, train_Y = u10.load_dataset()
-    train_X = cp.asarray(train_X)
-    train_Y = cp.asarray(train_Y)
-    #plt.show()
-    #np.random.seed(1)
-    model = DLModel("Model with mini batches and adam", use_cuda=True)
-    model.add(DLLayer("Hidden 1", 1000,(train_X.shape[0],),"relu","He", 0.007, optimization="adam"))
-    model.add(DLLayer("Hidden 2", 500,(1000,),"relu","He", 0.007, optimization="adam"))
-    model.add(DLLayer("Hidden 3", 200,(500,),"relu","He", 0.007, optimization="adam"))
-    model.add(DLLayer("Output", 1,(200,),"sigmoid","He", 0.007, optimization="adam"))
-    model.compile("cross_entropy")
-    costs = model.train(train_X, train_Y, 10)
-    plt.plot(costs)
-    plt.show()
-    train_predict = model.predict(train_X)
-    accuracy = np.sum(train_predict == train_Y)/train_X.shape[1]
-    print("accuracy:", str(accuracy))
-    plt.title(model.name)
-    axes = plt.gca()
-    axes.set_xlim([-1.5,2.5])
-    axes.set_ylim([-1,1.5])
-    u10.plot_decision_boundary(model, cp.asnumpy(train_X), cp.asnumpy(train_Y))
+    convValid = DLConvLayer("Valid", 3,(3,15,20), "relu", "Xavier", 0.01,filter_size=(3,3),strides=(1,2),padding="valid")
+    print(convValid)
+    convSame = DLConvLayer("Same", 2,(3,30,64), "relu", "Xavier", 0.1,(5,5),(1,1),"same", optimization='adaptive', regularization="L2")
+    print(convSame)
+    conv34 = DLConvLayer("34", 2,(3,28,28), "relu", "Xavier", 0.07,(2,2),(1,1),padding=(3,4))
+    print(conv34)
+    print(conv34.W)
 
     return
     
