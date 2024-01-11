@@ -13,6 +13,7 @@ import h5py
 import random as rnd
 import data_sender
 from DL9 import *
+import cupy as cp
 import time
 
 def main():
@@ -21,13 +22,28 @@ def main():
     plt.rcParams['image.interpolation'] = 'nearest'
     plt.rcParams['image.cmap'] = 'gray'
     np.random.seed(1)
-    convValid = DLConvLayer("Valid", 3,(3,15,20), "relu", "Xavier", 0.01,filter_size=(3,3),strides=(1,2),padding="valid")
-    print(convValid)
-    convSame = DLConvLayer("Same", 2,(3,30,64), "relu", "Xavier", 0.1,(5,5),(1,1),"same", optimization='adaptive', regularization="L2")
-    print(convSame)
-    conv34 = DLConvLayer("34", 2,(3,28,28), "relu", "Xavier", 0.07,(2,2),(1,1),padding=(3,4))
-    print(conv34)
-    print(conv34.W)
+
+    check_X = np.random.randn(3,28,28,10)
+
+    check_Y = np.random.rand(1,10) > 0.5
+    check_X = cp.array(check_X)
+    check_Y = cp.array(check_Y)
+    DNN = DLModel("Test div", use_cuda=True)
+    test_conv = DLConvLayer("test conv",12,(3,28,28),"sigmoid", "Xavier", 0.001,filter_size=(3,3),padding='same',strides=(1,1), regularization="dropout")
+
+    test_maxpooling = DLMaxPoolingLayer("test maxpool", (12,28,28),filter_size=(2,2),strides=(2,2))
+
+    test_flatten = DLFlattenLayer("test flatten", (12,14,14))
+
+    test_layer1 = DLLayer("test layer1", 17, (12*14*14,), "tanh", "Xavier", 0.001, optimization="adam", regularization="L2")
+
+    test_layer2 = DLLayer("test layer2", 1, (17,),"sigmoid", "Xavier", 0.001, optimization="adam")
+
+    DNN.layers = ["", test_conv,test_maxpooling,test_flatten,test_layer1,test_layer2]
+
+    DNN.compile("cross_entropy")
+
+    DNN.train(check_X, check_Y, 1000, 2)
 
     return
     

@@ -7,6 +7,7 @@ import math
 import matplotlib
 
 xp = np
+cpx = None
 
 class DLModel:
 
@@ -16,11 +17,13 @@ class DLModel:
         self._is_compiled = False
         self.inject_str_func = inject_str_func
         self.use_cuda = use_cuda
-        global xp
-        cp = np
         if use_cuda:
             import cupy as cp
-        xp = cp if use_cuda else np
+            import cupyx
+            global xp
+            xp = cp
+            global cpx
+            cpx = cupyx
 
     def __str__(self):
         s = self.name + " description:\n\tnum_layers: " + str(len(self.layers)-1) +"\n"
@@ -242,8 +245,12 @@ class DLModel:
         print("accuracy: ",str(right/len(Y[0])))
         print(confusion_matrix(prediction_index, Y_index))'''
         prediction = self.predict(X)
-        prediction_index = np.argmax(cp.asnumpy(prediction), axis=0)
-        Y_index = np.argmax(cp.asnumpy(Y), axis=0)
+        Y_np = Y
+        if self.use_cuda:
+            prediction = cp.asnumpy(prediction)
+            Y_np = cp.asnumpy(Y)
+        prediction_index = np.argmax(prediction, axis=0)
+        Y_index = np.argmax(Y_np, axis=0)
         right = xp.sum(xp.array(prediction_index) == xp.array(Y_index))
         print("accuracy: ",str(right/len(Y[0])))
         print(confusion_matrix(prediction_index, Y_index))
@@ -253,13 +260,13 @@ class DLModel:
         xp.random.seed(seed)
         m = Y.shape[1]
         permutation = list(xp.random.permutation(m))
-        shuffled_X = X[:, permutation]
+        shuffled_X = xp.take(X, permutation, axis=-1)
         shuffled_Y = Y[:, permutation].reshape((-1,m))
         num_complete_minibatches = math.floor(m/mini_batch_size)
         mini_batches = []
         for k in range(num_complete_minibatches if m%mini_batch_size == 0 else num_complete_minibatches+1):
-            mini_batch_X = shuffled_X[:, mini_batch_size*k : (k+1) * mini_batch_size]
-            mini_batch_Y = shuffled_Y[:, mini_batch_size*k : (k+1) * mini_batch_size]
+            mini_batch_X = xp.array(shuffled_X[..., mini_batch_size*k : (k+1) * mini_batch_size])
+            mini_batch_Y = xp.array(shuffled_Y[:, mini_batch_size*k : (k+1) * mini_batch_size])
             mini_batch = (mini_batch_X, mini_batch_Y)
             mini_batches.append(mini_batch)
         return mini_batches
@@ -301,25 +308,9 @@ class DLLayer:
             if func.__name__[1:-9] == activation:
                 self.activation_backward = func
                 break
-        if optimization == "adaptive":
-            self._adaptive_alpha_b = xp.full((self._num_units, 1), self.alpha)
-            self._adaptive_alpha_W = xp.full((self._num_units, *(self._input_shape)),self.alpha)
-            self.adaptive_cont = 1.1
-            self.adaptive_switch = -0.5
-        elif optimization == "momentum":
-            self._v_dW = xp.zeros((self._num_units, *(self._input_shape)), dtype=float)
-            self._v_db = xp.zeros((self._num_units,1), dtype=float)
-            self.momentum_beta = 0.09
-        elif optimization == "adam":
-            self._adam_v_dW = xp.zeros((self._num_units, *(self._input_shape)), dtype=float)
-            self._adam_v_db = xp.zeros((self._num_units,1), dtype=float)
-            self._adam_s_dW = xp.zeros((self._num_units, *(self._input_shape)), dtype=float)
-            self._adam_s_db = xp.zeros((self._num_units,1), dtype=float)
-            self.adam_beta1 = 0.09
-            self.adam_beta2 = 0.0999
-            self.adam_epsilon = 1e-8
+        self.init_optimization_params()
         if regularization == "L2":
-            self.L2_lambda = 4.6
+            self.L2_lambda = 0.6
         elif regularization == "dropout":
             self.dropout_keep_prob = keep_prob
         self.init_weights(W_initialization)
@@ -341,6 +332,26 @@ class DLLayer:
                     self.b = xp.array(hf['b'][:])
             except (FileNotFoundError):
                 raise NotImplementedError("Unrecognized initialization:", W_initialization)
+
+    def init_optimization_params(self):
+        if self._optimization == "adaptive":
+            self._adaptive_alpha_b = xp.full((self._num_units, 1), self.alpha)
+            self._adaptive_alpha_W = xp.full((self._num_units, *(self._input_shape)),self.alpha)
+            self.adaptive_cont = 1.1
+            self.adaptive_switch = -0.5
+        elif self._optimization == "momentum":
+            self._v_dW = xp.zeros((self._num_units, *(self._input_shape)), dtype=float)
+            self._v_db = xp.zeros((self._num_units,1), dtype=float)
+            self.momentum_beta = 0.09
+        elif self._optimization == "adam":
+            self._adam_v_dW = xp.zeros((self._num_units, *(self._input_shape)), dtype=float)
+            self._adam_v_db = xp.zeros((self._num_units,1), dtype=float)
+            self._adam_s_dW = xp.zeros((self._num_units, *(self._input_shape)), dtype=float)
+            self._adam_s_db = xp.zeros((self._num_units,1), dtype=float)
+            self.adam_beta1 = 0.09
+            self.adam_beta2 = 0.0999
+            self.adam_epsilon = 1e-8
+
     def __str__(self):
         s = self.name + " Layer:\n"
         s += "\tnum_units: " + str(self._num_units) + "\n"
@@ -545,31 +556,37 @@ class DLLayer:
 
 class DLConvLayer(DLLayer):
 
-    def __init__(self, name, num_filters, input_shape, activation="relu", W_initialization="random", alpha=0.01, filter_size=None, strides=1, 
+    def __init__(self, name, num_filters, input_shape, activation="relu", W_initialization="random", alpha=0.01, filter_size=(3,3), strides=(1,1), 
                  padding="same", optimization=None, regularization=None):
         if padding not in ["same", "valid"] and type(padding) != tuple:
             raise Exception(f"invalid value: padding must be either a tuple, 'same' or 'valid'. (is currently {padding})")
+        self.filter_size = filter_size
         super().__init__(name, num_filters, input_shape, activation, W_initialization, alpha, optimization, regularization)
         self.padding = padding
         if padding == "valid":
             self.padding = (0,0)
         elif padding == "same":
-            self.padding = ((input_shape[1]-1)/2, (input_shape[2]-1)/2)
-        self.filter_size = filter_size
+            py = int((strides[0]*input_shape[1]-strides[0]-input_shape[1]+filter_size[0]+1)/2)
+            px = int((strides[1]*input_shape[2]-strides[1]-input_shape[2]+filter_size[1]+1)/2)
+            self.padding = (py, px)
+        
         self.h_out = int((input_shape[1] + self.padding[0]*2 - filter_size[0])/strides[0]+1)
         self.w_out = int((input_shape[2] + self.padding[1]*2 - filter_size[1])/strides[1]+1)
         self.strides = strides
 
+
     def init_weights(self, W_initialization):
         self.b = xp.zeros((self._num_units,1), dtype=float)
         if W_initialization == "zeros":
-            self.W = xp.zeros((self._num_units, *(self._input_shape)), dtype=float)
+            self.W = xp.zeros((self._num_units, self._input_shape[0], *(self.filter_size)), dtype=float)
         elif W_initialization == "He":
-            self.W = xp.random.randn(self._num_units, *(self._input_shape)) * xp.sqrt(2/(self._input_shape[0] * self._input_shape[1] * self._input_shape[2]))
+            self.W = xp.random.randn(self._num_units, self._input_shape[0], *(self.filter_size)) * xp.sqrt(2/(self.filter_size[0] * self.filter_size[1] * self._input_shape[0]))
         elif W_initialization == "Xavier":
-            self.W = xp.random.randn(self._num_units, *(self._input_shape)) * xp.sqrt(1/(self._input_shape[0] * self._input_shape[1] * self._input_shape[2]))
+            fan_in = self.filter_size[0] * self.filter_size[1] * self._input_shape[0]
+            fan_out = self._num_units * self.filter_size[0] * self.filter_size[1]
+            self.W = xp.random.randn(self._num_units, self._input_shape[0], *(self.filter_size)) * xp.sqrt(2 / (fan_in + fan_out))
         elif W_initialization == "random":
-            self.W = xp.random.randn(self._num_units, *(self._input_shape)) * self.random_scale
+            self.W = xp.random.randn(self._num_units, self._input_shape[0], *(self.filter_size)) * self.random_scale
         else: 
             try:
                 with h5py.File(W_initialization, 'r') as hf:
@@ -578,6 +595,25 @@ class DLConvLayer(DLLayer):
             except (FileNotFoundError):
                 raise NotImplementedError("Unrecognized initialization:", W_initialization)
         
+    def init_optimization_params(self):
+        if self._optimization == "adaptive":
+            self._adaptive_alpha_b = xp.full((self._num_units, 1), self.alpha)
+            self._adaptive_alpha_W = xp.full((self._num_units, self._input_shape[0], *(self.filter_size)),self.alpha)
+            self.adaptive_cont = 1.1
+            self.adaptive_switch = -0.5
+        elif self._optimization == "momentum":
+            self._v_dW = xp.zeros((self._num_units, self._input_shape[0], *(self.filter_size)), dtype=float)
+            self._v_db = xp.zeros((self._num_units,1), dtype=float)
+            self.momentum_beta = 0.09
+        elif self._optimization == "adam":
+            self._adam_v_dW = xp.zeros((self._num_units, self._input_shape[0], *(self.filter_size)), dtype=float)
+            self._adam_v_db = xp.zeros((self._num_units,1), dtype=float)
+            self._adam_s_dW = xp.zeros((self._num_units, self._input_shape[0], *(self.filter_size)), dtype=float)
+            self._adam_s_db = xp.zeros((self._num_units,1), dtype=float)
+            self.adam_beta1 = 0.09
+            self.adam_beta2 = 0.0999
+            self.adam_epsilon = 1e-8
+
     def __str__(self):
         s = "Convolutional " + super(DLConvLayer, self).__str__()
         s += "\tConvolutional parameters:\n"
@@ -621,8 +657,143 @@ class DLConvLayer(DLLayer):
 
         return (k, i, j)
 
+    def col2im_indices(cols, A_shape, filter_height=3, filter_width=3, padding=(1,1),stride=(1,1)):
+        """ An implementation of col2im based on fancy indexing and np.add.at """
+        m, C, H, W = A_shape
+        H_padded, W_padded = H + 2 * padding[0], W + 2 * padding[1]
+        A_padded = xp.zeros((m, C, H_padded, W_padded), dtype=cols.dtype)
+        k, i, j = DLConvLayer.get_im2col_indices(A_shape, filter_height, filter_width, padding, stride)
+        cols_reshaped = cols.reshape(C * filter_height * filter_width, -1, m)
+        cols_reshaped = cols_reshaped.transpose(2, 0, 1)
+        if xp == np:
+            xp.add.at(A_padded, (slice(None), k, i, j), cols_reshaped)
+        else:
+            cpx.scatter_add(A_padded, (slice(None), k, i, j), cols_reshaped)
+        if padding[0] == 0 and padding[1] == 0:
+            return A_padded
+        if padding[0] == 0:
+            return A_padded[:, :, :, padding[1]:-padding[1]]
+        if padding[1] == 0:
+            return A_padded[:, :, padding[0]:-padding[0], :]
+        return A_padded[:, :, padding[0]:-padding[0], padding[1]:-padding[1]]
+
     def forward_propagation(self, A_prev, is_train):
+        A_prev = xp.transpose(A_prev, (3, 0, 1, 2))
+        A_prev = DLConvLayer.im2col_indices(A_prev, self.filter_size[0], self.filter_size[1], self.padding, self.strides)
         self._A_prev = self.forward_dropout(A_prev, is_train)
+        W_temp = self.W
+        self.W = self.W.reshape(self._num_units, -1)
         self._Z = xp.dot(self.W, self._A_prev) + self.b
+        self._Z = self._Z.reshape(self._num_units, self.h_out, self.w_out, -1)
+        self.W = W_temp
         A = self.activation_forward(self._Z)
         return A
+
+    def backward_propagation(self, dA):
+        dZ = self.activation_backward(dA)
+        m = dZ.shape[-1]
+        dZ = dZ.reshape(self._num_units, -1)
+        W_temp = self.W
+        self.W = self.W.reshape(self._num_units, -1)
+        self.db = xp.sum(dZ , axis=1, keepdims=True)/m
+        self.dW = ((dZ @ (self._A_prev.T)) + self.L2_lambda * self.W)/m
+        dA_Prev = self.W.T @ dZ
+        dA_Prev = self.backward_dropout(dA_Prev)
+        self.W = W_temp
+        self.dW = self.dW.reshape(*(self.W.shape))
+        A_prev_shape = (m,*self._input_shape)
+        dA_Prev = DLConvLayer.col2im_indices(dA_Prev, A_prev_shape, self.filter_size[0], self.filter_size[1], self.padding, self.strides)
+        # transpose dA-prev from (m,C,H,W) to (C,H,W,m)
+        dA_Prev = dA_Prev.transpose(1,2,3,0)
+        return dA_Prev
+
+class DLMaxPoolingLayer:
+
+    def __init__(self, name, input_shape, filter_size, strides):
+        self.name = name
+        self._input_shape = input_shape
+        self.filter_size = filter_size
+        self.strides = strides
+        self.h_out = int((input_shape[1] - filter_size[0])/strides[0]+1)
+        self.w_out = int((input_shape[2] - filter_size[1])/strides[1]+1)
+
+    def __str__(self):
+        s = f"Maxpooling {self.name} Layer:\n"
+        s += f"\tinput_shape: {self._input_shape}\n"
+        s += "\tMaxpooling parameters:\n"
+        s += f"\t\tfilter size: {self.filter_size}\n"
+        s += f"\t\tstrides: {self.strides}\n"
+        # number of output channels == number of input channels
+        s += f"\t\toutput shape: {(self._input_shape[0], self.h_out, self.w_out)}\n"
+        return s
+
+    def forward_propagation(self, A_prev, is_train=False):
+        # first transpose A_prev from (C,H,W,m) to (m,C,H,W)
+        A_prev = A_prev.transpose(3, 0, 1, 2)
+        m,C,H,W = A_prev.shape
+        A_prev = A_prev.reshape(m*C,1,H,W)
+        self._A_prev = DLConvLayer.im2col_indices(A_prev, self.filter_size[0], self.filter_size[1], padding = (0,0), stride = self.strides)
+        self.max_indexes = xp.argmax(self._A_prev,axis=0)
+        Z = self._A_prev[self.max_indexes,range(self.max_indexes.size)]
+        Z = Z.reshape(self.h_out,self.w_out,m,C).transpose(3,0,1,2)
+        return Z
+
+    def backward_propagation(self,dZ):
+        dA_prev = np.zeros_like(self._A_prev)
+        # transpose dZ from C,h,W,C to H,W,m,c and flatten it
+        # Then, insert dZ values to dA_prev in the places of the max indexes
+        dZ_flat = dZ.transpose(1,2,3,0).ravel()
+        dA_prev[self.max_indexes,range(self.max_indexes.size)] = dZ_flat
+        # get the original prev_A structure from col2im
+        m = dZ.shape[-1]
+        C,H,W = self._input_shape
+        shape = (m*C,1,H,W)
+        dA_prev = DLConvLayer.col2im_indices(dA_prev, shape, self.filter_size[0], self.filter_size[1], padding=(0,0),stride=self.strides)
+        dA_prev = dA_prev.reshape(m,C,H,W).transpose(1,2,3,0)
+        return dA_prev
+
+    def get_output_shape(self):
+        return (self._input_shape[0], self.h_out, self.w_out) 
+
+    def update_parameters(self, t=1):
+        #for compatibility with DLModel
+        return
+
+    def regularization_cost(self, m=1):
+        #for compatibility with DLModel
+        return 0
+
+class DLFlattenLayer:
+
+    def __init__(self, name, input_shape):
+        self.input_shape = input_shape
+        self.name = name
+
+    def __str__(self):
+        s = f"Flatten {self.name} Layer:\n"
+        s += f"\tinput_shape: {self.input_shape}\n"
+        return s
+
+    def forward_propagation(self, prev_A, is_train=False):
+        m = prev_A.shape[-1]
+        # for TF competability transpose to (H,W,C, m) before flattening
+        A = prev_A.transpose(1,2,0,3).reshape(-1,m)
+        return A
+
+    def backward_propagation(self,dA):
+        m = dA.shape[-1]
+        # reshape back to (H,W,C, m) before transposing to (C,H,W, m)
+        C,H,W = self.input_shape
+        dA_prev = dA.reshape(H,W,C,m).transpose(2,0,1,3)
+        return dA_prev
+
+    def get_output_shape(self):
+        return (self.input_shape[0] * self.input_shape[1] * self.input_shape[2],)
+
+    def update_parameters(self, t=1):
+        #for compatibility with DLModel
+        return
+
+    def regularization_cost(self, m=1):
+        #for compatibility with DLModel
+        return 0
