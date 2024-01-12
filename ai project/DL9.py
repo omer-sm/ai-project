@@ -82,14 +82,14 @@ class DLModel:
         SM = self.squared_means(AL, Y) * self.recon_loss_weight
         logvar = self.layers[self.bottleneck_layer].logvar
         mu = self.layers[self.bottleneck_layer].mu
-        KL = -xp.sum(1 + xp.log(logvar**2) - mu**2 - logvar**2)
+        KL = -xp.sum(1 + xp.log(logvar**2) - mu**2 - logvar**2) * 0.4
         SM[0][0] += KL 
         return SM
 
     def squared_means_KLD_backward(self, AL, Y):
         grad_SM = self.squared_means_backward(AL, Y) * self.recon_loss_weight
         logvar = self.layers[self.bottleneck_layer].logvar
-        dLogvar = -(2 / logvar - 2 * logvar)
+        dLogvar = -(2 / logvar - 2 * logvar) * 0.4
         self.layers[self.bottleneck_layer].dLogvar = dLogvar
         return grad_SM
 
@@ -487,7 +487,7 @@ class DLLayer:
     def _vae_bottleneck_backward(self, dA):
         dA = dA.reshape(dA.shape[0] // self._samples_per_dim, self._samples_per_dim, dA.shape[1])
         dA = xp.mean(dA, axis=1)
-        dZ = xp.concatenate((dA + 2*self.mu, self._vae_epsilon * dA + self.dLogvar), axis=0)
+        dZ = xp.concatenate((dA + 2*self.mu * 0.4, self._vae_epsilon * dA + self.dLogvar), axis=0)
         return dZ
 
     def backward_propagation(self, dA):

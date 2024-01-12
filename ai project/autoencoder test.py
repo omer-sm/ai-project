@@ -1,12 +1,44 @@
 from DL9 import *
-import cupy as cp
+#import cupy as cp
 import numpy as np
-from sklearn.datasets import fetch_openml
+from sklearn.datasets import fetch_openml, load_digits
 import matplotlib.pyplot as plt
 import matplotlib
 import os, os.path
 from PIL import Image
 
+np.random.seed(1)
+mnist = fetch_openml('mfeat-pixel',as_frame=False, parser="liac-arff")
+digits = mnist["data"]
+y = digits.T
+x = digits.reshape(2000,16,15).T
+x = np.array([x])
+x *= 255/6
+y *= 255/6
+model = DLModel("")
+l1 = DLConvLayer("", 8, (1,15,16), "leaky_relu", "Xavier", 0.001, (3,3), (2,2), "same", "adam")
+model.add(l1)
+l2 = DLConvLayer("", 6, (8,15,16), "relu", "Xavier", 0.001, (2,2), (1,1), (1,1), "adam")
+model.add(l2)
+l3 = DLMaxPoolingLayer("", l2.get_output_shape(), (2,2), (1,1))
+model.add(l3)
+l4 = DLFlattenLayer("", l3.get_output_shape())
+model.add(l4)
+model.add(DLLayer("", 16, l4.get_output_shape(), "leaky_relu", "He", 0.001, "adam"))
+model.add(DLLayer("", 32, (16,), "vae_bottleneck", "Xavier", 0.002, "adaptive", samples_per_dim=4))
+model.add(DLLayer("", 512, (64,), "relu", "Xavier", 0.001, "adam"))
+model.add(DLLayer("", 240, (512,), "leaky_relu", "Xavier", 0.001, "adam"))
+model.compile("squared_means_KLD", recon_loss_weight=1.1)
+model.train(x, y, 190, 500)
+processed = model.forward_propagation(x)
+processed = processed.reshape(16,15,2000).transpose(2,0,1)
+for i in range(20):
+    plt.imshow(x.T[i*30+194], cmap="gray")
+    plt.show()
+    plt.imshow(processed[i*30+194], cmap="gray")
+    plt.show()
+    
+exit()
 np.random.seed(1)
 cp.random.seed(1)
 
@@ -24,7 +56,7 @@ imgs_flat = imgs.T.reshape(3000,4096).T
 imgs = imgs.reshape(1,64,64,3000)
 imgs = imgs / 255.
 
-model = DLModel("", use_cuda=True)
+'''model = DLModel("", use_cuda=True)
 model.add(l1 := DLConvLayer("1", 8, (1,64,64), "trim_tanh", "Xavier", 0.002, (5,5), (3,3), "valid", optimization="adam"))
 model.add(l2 := DLMaxPoolingLayer("2", l1.get_output_shape(), (4,4), (3,3)))
 #model.add(l3 := DLConvLayer("3", 8, l2.get_output_shape(), "trim_tanh", "Xavier", 0.002, (4,4), (3,3), "valid", optimization="adam"))
@@ -36,7 +68,7 @@ model.add(DLLayer("4", 4096, (64,), "trim_sigmoid", "Xavier", 0.002, "adam"))
 model.compile("cross_entropy_KLD", recon_loss_weight=0.8)
 costs = model.train(imgs, imgs_flat, 50, 1000)
 processed = (cp.asnumpy(model.forward_propagation(imgs)).T)
-imgs = cp.asnumpy(imgs.T )
+imgs = cp.asnumpy(imgs.T )'''
 
 for i in range(20):
     ind = i*np.random.randint(1,100)
