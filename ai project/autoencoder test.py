@@ -1,5 +1,5 @@
 from DL9 import *
-#import cupy as cp
+import cupy as cp
 import numpy as np
 from sklearn.datasets import fetch_openml, load_digits
 import matplotlib.pyplot as plt
@@ -7,7 +7,7 @@ import matplotlib
 import os, os.path
 from PIL import Image
 
-np.random.seed(1)
+'''np.random.seed(1)
 mnist = fetch_openml('mfeat-pixel',as_frame=False, parser="liac-arff")
 digits = mnist["data"]
 y = digits.T
@@ -15,66 +15,82 @@ x = digits.reshape(2000,16,15).T
 x = np.array([x])
 x *= 255/6
 y *= 255/6
-model = DLModel("")
-l1 = DLConvLayer("", 8, (1,15,16), "leaky_relu", "Xavier", 0.001, (3,3), (2,2), "same", "adam")
+y = cp.array(y)
+x = cp.array(x)
+model = DLModel("", use_cuda=True)
+l1 = DLConvLayer("", 32, (1,15,16), "leaky_relu", "Xavier", 0.001, (4,4), (2,1), "same", "adam")
 model.add(l1)
-l2 = DLConvLayer("", 6, (8,15,16), "relu", "Xavier", 0.001, (2,2), (1,1), (1,1), "adam")
+l2 = DLConvLayer("", 32, l1.get_output_shape(), "relu", "Xavier", 0.001, (3,3), (1,2), "valid", "adam")
 model.add(l2)
-l3 = DLMaxPoolingLayer("", l2.get_output_shape(), (2,2), (1,1))
+l3 = DLConvLayer("", 16, l2.get_output_shape(), "leaky_relu", "He", 0.001, (2,2), (1,1), "valid", "adam")
 model.add(l3)
-l4 = DLFlattenLayer("", l3.get_output_shape())
+l4 = DLMaxPoolingLayer("", l3.get_output_shape(), (2,2), (1,1))
 model.add(l4)
-model.add(DLLayer("", 16, l4.get_output_shape(), "leaky_relu", "He", 0.001, "adam"))
-model.add(DLLayer("", 32, (16,), "vae_bottleneck", "Xavier", 0.002, "adaptive", samples_per_dim=4))
+l5 = DLFlattenLayer("", l4.get_output_shape())
+model.add(l5)
+print(l5.get_output_shape())
+model.add(DLLayer("", 512, l5.get_output_shape(), "leaky_relu", "He", 0.001, "adam"))
+model.add(DLLayer("", 32, (512,), "vae_bottleneck", "Xavier", 0.002, "adaptive", samples_per_dim=4))
 model.add(DLLayer("", 512, (64,), "relu", "Xavier", 0.001, "adam"))
 model.add(DLLayer("", 240, (512,), "leaky_relu", "Xavier", 0.001, "adam"))
-model.compile("squared_means_KLD", recon_loss_weight=1.1)
-model.train(x, y, 190, 500)
+model.compile("squared_means_KLD", recon_loss_weight=1.1, KLD_beta=0.4)
+model.train(x, y, 100, 500)
 processed = model.forward_propagation(x)
 processed = processed.reshape(16,15,2000).transpose(2,0,1)
+processed = cp.asnumpy(processed)
+x = cp.asnumpy(x)
 for i in range(20):
     plt.imshow(x.T[i*30+194], cmap="gray")
     plt.show()
     plt.imshow(processed[i*30+194], cmap="gray")
     plt.show()
     
-exit()
+exit()'''
 np.random.seed(1)
 cp.random.seed(1)
 
 imgs = []
 path = r"C:\Users\omerg\Favorites\Downloads\cats"
 for i in range(1):
-    for f in os.listdir(path)[i*3000:(i+1)*3000]:
+    for f in os.listdir(path)[i*30:(i+1)*30]:
         ext = os.path.splitext(f)[1]
         if ext.lower() != ".jpg":
             continue
-        img = np.array(Image.open(os.path.join(path,f)).convert("L"))
+        img = np.array(Image.open(os.path.join(path,f)))
         imgs.append(img)
-imgs = cp.array(imgs)[:3000].T
-imgs_flat = imgs.T.reshape(3000,4096).T
-imgs = imgs.reshape(1,64,64,3000)
-imgs = imgs / 255.
+imgs = cp.array(imgs)[:30].T
+imgs_flat = imgs.T.reshape(30,4096*3).T
+imgs = imgs
+print("loaded data")
+model = DLModel("", use_cuda=True)
 
-'''model = DLModel("", use_cuda=True)
-model.add(l1 := DLConvLayer("1", 8, (1,64,64), "trim_tanh", "Xavier", 0.002, (5,5), (3,3), "valid", optimization="adam"))
-model.add(l2 := DLMaxPoolingLayer("2", l1.get_output_shape(), (4,4), (3,3)))
-#model.add(l3 := DLConvLayer("3", 8, l2.get_output_shape(), "trim_tanh", "Xavier", 0.002, (4,4), (3,3), "valid", optimization="adam"))
-#model.add(l4 := DLMaxPoolingLayer("4", l3.get_output_shape(), (3,3), (1,1)))
-model.add(l5 := DLFlattenLayer("5", l2.get_output_shape()))
-model.add(DLLayer("2", 8, l5.get_output_shape(), "vae_bottleneck", "Xavier", 0.001, "adam", samples_per_dim=4))
-model.add(DLLayer("3", 64, (16,), "trim_tanh", "He", 0.002, "adam"))
-model.add(DLLayer("4", 4096, (64,), "trim_sigmoid", "Xavier", 0.002, "adam"))
-model.compile("cross_entropy_KLD", recon_loss_weight=0.8)
-costs = model.train(imgs, imgs_flat, 50, 1000)
-processed = (cp.asnumpy(model.forward_propagation(imgs)).T)
-imgs = cp.asnumpy(imgs.T )'''
-
+l1 = DLConvLayer("", 32, (3,64,64), "relu", "He", 0.0003, (4,4), (3,3), "valid", "adam")
+model.add(l1)
+l2 = DLConvLayer("", 16, l1.get_output_shape(), "leaky_relu", "Xavier", 0.0005, (3,3), (2,2), (1,1), "adam")
+model.add(l2)
+l3 = DLMaxPoolingLayer("", l2.get_output_shape(), strides=(2,2))
+model.add(l3)
+l4 = DLConvLayer("", 32, l3.get_output_shape(), "relu", "Xavier", 0.0003, (3,3), (2,2), "valid", "adam")
+model.add(l4)
+l5 = DLConvLayer("", 16, l4.get_output_shape(), "leaky_relu", "He", 0.0005, strides=(2,2), optimization="adam")
+model.add(l5)
+l6 = DLMaxPoolingLayer("", l5.get_output_shape(), (2,2))
+model.add(l6)
+l7 = DLFlattenLayer("", l6.get_output_shape())
+model.add(l7)
+model.add(DLLayer("", 512, l7.get_output_shape(), "leaky_relu", "Xavier", 0.001, "adam")) 
+model.add(DLLayer("", 16, (512,), "vae_bottleneck", "Xavier", 0.002, "adaptive", samples_per_dim=16)) 
+model.add(DLLayer("", 2048, (128,), "leaky_relu", "He", 0.001, "adam"))
+model.add(DLLayer("", 4096*3, (2048,), "leaky_relu", "Xavier", 0.001, "adam"))
+model.compile("squared_means_KLD", recon_loss_weight=1.1, KLD_beta=0.4)
+costs = model.train(imgs, imgs_flat, 1500, 10)
+processed = (cp.asnumpy(model.forward_propagation(imgs)).T).astype(int)
+imgs = cp.asnumpy(imgs.T ).astype(int)
 for i in range(20):
-    ind = i*np.random.randint(1,100)
-    plt.imshow(imgs[ind].reshape(64,64), cmap=matplotlib.cm.binary)
+    ind = i*np.random.randint(1,2)
+    plt.imshow(imgs[ind].reshape(64,64,3))
     plt.show()
-    plt.imshow(processed[ind].reshape(64,64), cmap=matplotlib.cm.binary)
+    plt.imshow(processed[ind].reshape(64,64,3))
     plt.show()
 
 '''mnist = fetch_openml('mnist_784',as_frame=False, parser="liac-arff")

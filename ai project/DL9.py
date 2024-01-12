@@ -75,6 +75,8 @@ class DLModel:
         grad_CE = self.cross_entropy_backward(AL, Y) * self.recon_loss_weight
         logvar = self.layers[self.bottleneck_layer].logvar
         dLogvar = -(2 / logvar - 2 * logvar)
+        mu = self.layers[self.bottleneck_layer].mu
+        self.layers[self.bottleneck_layer].dMu = 2 * mu * self.KLD_beta
         self.layers[self.bottleneck_layer].dLogvar = dLogvar
         return grad_CE
 
@@ -82,25 +84,28 @@ class DLModel:
         SM = self.squared_means(AL, Y) * self.recon_loss_weight
         logvar = self.layers[self.bottleneck_layer].logvar
         mu = self.layers[self.bottleneck_layer].mu
-        KL = -xp.sum(1 + xp.log(logvar**2) - mu**2 - logvar**2) * 0.4
+        KL = -xp.sum(1 + xp.log(logvar**2) - mu**2 - logvar**2) * self.KLD_beta
         SM[0][0] += KL 
         return SM
 
     def squared_means_KLD_backward(self, AL, Y):
         grad_SM = self.squared_means_backward(AL, Y) * self.recon_loss_weight
         logvar = self.layers[self.bottleneck_layer].logvar
-        dLogvar = -(2 / logvar - 2 * logvar) * 0.4
+        dLogvar = -(2 / logvar - 2 * logvar) * self.KLD_beta
+        mu = self.layers[self.bottleneck_layer].mu
+        self.layers[self.bottleneck_layer].dMu = 2 * mu * self.KLD_beta
         self.layers[self.bottleneck_layer].dLogvar = dLogvar
         return grad_SM
 
 
-    def compile(self, loss, threshold=0.5, recon_loss_weight=1.):
+    def compile(self, loss, threshold=0.5, recon_loss_weight=1., KLD_beta=0.7):
         if loss not in ["cross_entropy", "squared_means", "categorical_cross_entropy", "cross_entropy_KLD", "squared_means_KLD"]:
             raise Exception(f"invalid value: loss must be either 'cross_entropy', 'categorical_cross_entropy', 'cross_entropy_KLD', 'squared_means_KLD' or 'squared_means'. (is currently {loss})")
         self.loss = loss
         self.recon_loss_weight = recon_loss_weight
         self.threshold = threshold
         self.is_train = False
+        self.KLD_beta = KLD_beta
         for func in [self.squared_means, self.cross_entropy, self.categorical_cross_entropy, self.cross_entropy_KLD, self.squared_means_KLD]:
             if func.__name__ == loss:
                 self.loss_forward = func
@@ -487,7 +492,7 @@ class DLLayer:
     def _vae_bottleneck_backward(self, dA):
         dA = dA.reshape(dA.shape[0] // self._samples_per_dim, self._samples_per_dim, dA.shape[1])
         dA = xp.mean(dA, axis=1)
-        dZ = xp.concatenate((dA + 2*self.mu * 0.4, self._vae_epsilon * dA + self.dLogvar), axis=0)
+        dZ = xp.concatenate((dA + self.dMu, self._vae_epsilon * dA + self.dLogvar), axis=0)
         return dZ
 
     def backward_propagation(self, dA):
