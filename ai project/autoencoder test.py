@@ -1,3 +1,4 @@
+from numpy.lib.function_base import i0
 from DL9 import *
 import cupy as cp
 import numpy as np
@@ -46,20 +47,21 @@ for i in range(20):
     plt.show()
     
 exit()'''
+
 np.random.seed(1)
 cp.random.seed(1)
 
 imgs = []
 path = r"C:\Users\omerg\Favorites\Downloads\cats"
 for i in range(1):
-    for f in os.listdir(path)[i*30:(i+1)*30]:
+    for f in os.listdir(path)[i*300:(i+1)*300]:
         ext = os.path.splitext(f)[1]
         if ext.lower() != ".jpg":
             continue
         img = np.array(Image.open(os.path.join(path,f)))
         imgs.append(img)
-imgs = cp.array(imgs)[:30].T
-imgs_flat = imgs.T.reshape(30,4096*3).T
+imgs = cp.array(imgs)[90:190].T
+imgs_flat = imgs.T.reshape(100,4096*3).T
 imgs = imgs
 print("loaded data")
 model = DLModel("", use_cuda=True)
@@ -70,9 +72,9 @@ l2 = DLConvLayer("", 16, l1.get_output_shape(), "leaky_relu", "Xavier", 0.0005, 
 model.add(l2)
 l3 = DLMaxPoolingLayer("", l2.get_output_shape(), strides=(2,2))
 model.add(l3)
-l4 = DLConvLayer("", 32, l3.get_output_shape(), "relu", "Xavier", 0.0003, (3,3), (2,2), "valid", "adam")
+l4 = DLConvLayer("", 32, l3.get_output_shape(), "relu", "He", 0.0003, (3,3), (2,2), "valid", "adam")
 model.add(l4)
-l5 = DLConvLayer("", 16, l4.get_output_shape(), "leaky_relu", "He", 0.0005, strides=(2,2), optimization="adam")
+l5 = DLConvLayer("", 16, l4.get_output_shape(), "leaky_relu", "Xavier", 0.0005, strides=(2,2), optimization="adam")
 model.add(l5)
 l6 = DLMaxPoolingLayer("", l5.get_output_shape(), (2,2))
 model.add(l6)
@@ -81,16 +83,29 @@ model.add(l7)
 model.add(DLLayer("", 512, l7.get_output_shape(), "leaky_relu", "Xavier", 0.001, "adam")) 
 model.add(DLLayer("", 16, (512,), "vae_bottleneck", "Xavier", 0.002, "adaptive", samples_per_dim=16)) 
 model.add(DLLayer("", 2048, (128,), "leaky_relu", "He", 0.001, "adam"))
-model.add(DLLayer("", 4096*3, (2048,), "leaky_relu", "Xavier", 0.001, "adam"))
-model.compile("squared_means_KLD", recon_loss_weight=1.1, KLD_beta=0.4)
-costs = model.train(imgs, imgs_flat, 1500, 10)
+model.add(DLLayer("", 4096*3, (2048,), "relu", "Xavier", 0.001, "adam"))
+model.compile("squared_means_KLD", recon_loss_weight=1.1, KLD_beta=1.5)
+costs = model.train(imgs, imgs_flat, 1500, 25)
 processed = (cp.asnumpy(model.forward_propagation(imgs)).T).astype(int)
 imgs = cp.asnumpy(imgs.T ).astype(int)
-for i in range(20):
+model.save_weights("cat_vae", True)
+for i in range(5):
     ind = i*np.random.randint(1,2)
     plt.imshow(imgs[ind].reshape(64,64,3))
     plt.show()
     plt.imshow(processed[ind].reshape(64,64,3))
+    plt.show()
+
+print("showing gen")
+
+for i in range(20):
+    gen = np.random.random_sample((16, 1))*(10-i)/10
+    gen = cp.array(gen)
+    gen = model.layers[9]._vae_bottleneck(gen)
+    for l in range(10,12):
+        gen = model.layers[l].forward_propagation(gen, False)
+    gen = cp.asnumpy(gen.T).astype(int)
+    plt.imshow(gen.reshape(64,64,3))
     plt.show()
 
 '''mnist = fetch_openml('mnist_784',as_frame=False, parser="liac-arff")

@@ -5,6 +5,7 @@ import h5py
 from sklearn.metrics import classification_report, confusion_matrix
 import math
 import matplotlib
+from scipy import ndimage
 
 xp = np
 cpx = None
@@ -20,6 +21,7 @@ class DLModel:
         if use_cuda:
             import cupy as cp
             import cupyx
+            from cupyx.scipy import ndimage
             global xp
             xp = cp
             global cpx
@@ -543,8 +545,8 @@ class DLLayer:
             os.makedirs(path)
         with h5py.File(path+"/"+file_name+'.h5', 'w') as hf:
             if is_cupy:
-                hf.create_dataset("W", data=cp.asnumpy(self.W))
-                hf.create_dataset("b", data=cp.asnumpy(self.b))
+                hf.create_dataset("W", data=xp.asnumpy(self.W))
+                hf.create_dataset("b", data=xp.asnumpy(self.b))
             else:
                 hf.create_dataset("W", data=self.W)
                 hf.create_dataset("b", data=self.b)
@@ -770,6 +772,10 @@ class DLMaxPoolingLayer:
         #for compatibility with DLModel
         return 0
 
+    def save_weights(self, path, file_name, is_cupy=False):
+        #for compatibility with DLModel
+        return  
+
 class DLFlattenLayer:
 
     def __init__(self, name, input_shape):
@@ -804,3 +810,91 @@ class DLFlattenLayer:
     def regularization_cost(self, m=1):
         #for compatibility with DLModel
         return 0
+
+    def save_weights(self, path, file_name, is_cupy=False):
+        #for compatibility with DLModel
+        return 
+
+class DLDeflattenLayer:
+
+    def __init__(self, name, input_shape, output_shape):
+        self.input_shape = input_shape
+        self.name = name
+        self.output_shape = output_shape
+
+    def __str__(self):
+        s = f"Deflatten {self.name} Layer:\n"
+        s += f"\tinput_shape: {self.input_shape}\n"
+        return s
+
+    def backward_propagation(self, prev_A):
+        m = prev_A.shape[-1]
+        # for TF competability transpose to (H,W,C, m) before flattening
+        A = prev_A.transpose(1,2,0,3).reshape(-1,m)
+        return A
+
+    def forward_propagation(self,dA, is_train=False):
+        m = dA.shape[-1]
+        # reshape back to (H,W,C, m) before transposing to (C,H,W, m)
+        C,H,W = self.output_shape
+        dA_prev = dA.reshape(H,W,C,m).transpose(2,0,1,3)
+        return dA_prev
+
+    def get_output_shape(self):
+        return self.output_shape
+
+    def update_parameters(self, t=1):
+        #for compatibility with DLModel
+        return
+
+    def regularization_cost(self, m=1):
+        #for compatibility with DLModel
+        return 0
+
+    def save_weights(self, path, file_name, is_cupy=False):
+        #for compatibility with DLModel
+        return 
+
+class DLUpsampleLayer:
+
+    def __init__(self, name, input_shape, scale=2):
+        self.name = name
+        self._input_shape = input_shape
+        self.scale = scale
+
+    def __str__(self):
+        s = f"Upsample {self.name} Layer:\n"
+        s += f"\tinput_shape: {self._input_shape}\n"
+        s += f"\tscale: {self.scale}\n"
+        return s
+
+    def forward_propagation(self, A_prev, is_train=False):
+        A_prev = A_prev.transpose(0, 1, 2, 3)
+        if xp == np:
+            Z = ndimage.zoom(A_prev, (1, self.scale, self.scale, 1))
+        else:
+            Z = cpx.scipy.ndimage.zoom(A_prev, (1, self.scale, self.scale, 1))
+        return Z
+
+    def backward_propagation(self,dZ):
+        dZ = dZ.transpose(0, 1, 2, 3)
+        if xp == np:
+            dA_prev = ndimage.zoom(dZ, (1, 1/self.scale, 1/self.scale, 1))
+        else:
+            dA_prev = cpx.scipy.ndimage.zoom(dZ, (1, 1/self.scale, 1/self.scale, 1))
+        return dA_prev
+
+    def get_output_shape(self):
+        return (self._input_shape[0], int(self._input_shape[1]*self.scale), int(self._input_shape[2]*self.scale)) 
+
+    def update_parameters(self, t=1):
+        #for compatibility with DLModel
+        return
+
+    def regularization_cost(self, m=1):
+        #for compatibility with DLModel
+        return 0
+
+    def save_weights(self, path, file_name, is_cupy=False):
+        #for compatibility with DLModel
+        return  
