@@ -64,6 +64,23 @@ imgs = cp.array(imgs)[90:190].T
 imgs_flat = imgs.T.reshape(100,4096*3).T
 imgs = imgs
 print("loaded data")
+imgs = cp.asnumpy(imgs.T)[:20]
+'''im1 = imgs[:5]
+im2 = imgs[5:10]
+im3 = imgs[10:15]
+im4 = imgs[15:20]
+comb = np.insert(im1, np.arange(64), im2, axis=2)
+comb2 = np.insert(im3, np.arange(64), im4, axis=2)
+ret = np.insert(comb, np.arange(64), comb2, axis=1)
+print(ret.shape)'''
+l = DLPixelShuffleLayer("", (20,64,64))
+ret = l.forward_propagation(imgs)
+ret = l.backward_propagation(ret)
+plt.imshow(imgs[17])
+plt.show()
+plt.imshow(ret[17])
+plt.show()
+exit()
 model = DLModel("", use_cuda=True)
 
 l1 = DLConvLayer("", 32, (3,64,64), "relu", "He", 0.0003, (4,4), (3,3), "valid", "adam")

@@ -898,3 +898,59 @@ class DLUpsampleLayer:
     def save_weights(self, path, file_name, is_cupy=False):
         #for compatibility with DLModel
         return  
+
+class DLPixelShuffleLayer:
+
+    def __init__(self, name, input_shape):
+        self.name = name
+        if input_shape[0] % 4 != 0:
+            raise Exception(f"invalid value: input shape must have a channel amount that is divisable by 4. (is currently {input_shape}")
+        self.input_shape = input_shape
+        self._slice_index = input_shape[0] // 4
+
+    def __str__(self):
+        s = f"Pixel Shuffle {self.name} Layer:\n"
+        s += f"\tinput_shape: {self._input_shape}\n"
+        return s
+
+    def get_output_shape(self):
+        return (self._slice_index, self.input_shape[1] * 2, self.input_shape[2] * 2)
+
+    def forward_propagation(self, A_Prev, is_train=False):
+        #no insert in cupy :(
+        if xp != np:
+            A_Prev = xp.asnumpy(A_Prev)
+        #slice A_Prev by channels into 4 slices
+        s1 = A_Prev[:self._slice_index]
+        s2 = A_Prev[self._slice_index:self._slice_index*2]
+        s3 = A_Prev[self._slice_index*2:self._slice_index*3]
+        s4 = A_Prev[self._slice_index*3:self._slice_index*4]
+        #combine the slices with each other
+        combined_s1s2 = np.insert(s1, np.arange(s1.shape[2]), s2, axis=2)
+        combined_s3s4 = np.insert(s3, np.arange(s1.shape[2]), s4, axis=2)
+        Z = np.insert(combined_s1s2, np.arange(s1.shape[1]), combined_s3s4, axis=1)
+        if xp != np:
+            Z = xp.array(Z)
+        return Z
+
+    def backward_propagation(self, dZ):
+        combined_s1s2 = dZ[:,::2,:,:]
+        combined_s3s4 = dZ[:,1::2,:,:]
+        s1 = combined_s1s2[:,:,::2,:]
+        s2 = combined_s1s2[:,:,1::2,:]
+        s3 = combined_s3s4[:,:,::2,:]
+        s4 = combined_s3s4[:,:,1::2,:]
+        dA_Prev = xp.concatenate((s4,s3,s2,s1), axis=0)
+        return dA_Prev
+
+    def update_parameters(self, t=1):
+        #for compatibility with DLModel
+        return
+
+    def regularization_cost(self, m=1):
+        #for compatibility with DLModel
+        return 0
+
+    def save_weights(self, path, file_name, is_cupy=False):
+        #for compatibility with DLModel
+        return 
