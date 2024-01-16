@@ -5,7 +5,7 @@
     <ProjectGuid>5bb35e1a-ffa7-4d05-b72d-507227aff6f9</ProjectGuid>
     <ProjectHome>
     </ProjectHome>
-    <StartupFile>autoencoder test.py</StartupFile>
+    <StartupFile>gan test.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -31,6 +31,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ai project.py" />
+    <Compile Include="DL10.py" />
     <Compile Include="DL9.py" />
     <Compile Include="DL8.py" />
     <Compile Include="DL7.py" />
@@ -52,6 +53,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="convolutions.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="gan test.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="notes_test.py">
