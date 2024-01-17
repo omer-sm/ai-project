@@ -1223,9 +1223,13 @@ class DLVAEGANModel(DLGANModel):
                 print(self.report_generator_train_stats(i,Ji))
         return costs
 
-    def train(self, X, num_epochs, gen_epochs=5, discrim_epochs=3, mini_batch_size=0):
+    def train(self, X, num_epochs, gen_epochs=5, discrim_epochs=3, mini_batch_size=0, show_images=False):
         print_ind = max(num_epochs // 100, 1)
-        plt.ion()
+        if show_images:
+            plt.ion()
+            fig, axs = plt.subplots(4, 5, figsize=(10, 8))
+            axs = axs.flatten()
+            plt.show()
         m = X.shape[-1]
         total_discriminator_costs = []
         total_generator_costs = []
@@ -1236,12 +1240,17 @@ class DLVAEGANModel(DLGANModel):
                 total_discriminator_costs.append(discriminator_costs[-1])
                 total_generator_costs.append(generator_costs[-1])
                 print(f"GAN: iteration: {i}, costs:\n\tdiscriminator: {discriminator_costs[-1]}\n\tgenerator: {generator_costs[-1]}")
-                plt.pause(0.1)
-                plt.cla()
-                plt.plot(X[0], X[1])
-                y = self.generate(50)
-                plt.scatter(y[0], y[1])
-                plt.show()
+                if show_images:
+                    plt.pause(0.1)
+                    plt.cla()
+                    out = xp.asnumpy(self.generate(20).T)
+                    for j in range(20):
+                        axs[j].imshow(out[j].reshape(64, 64, 3), cmap=matplotlib.cm.binary)
+                        axs[j].axis('off')  # Turn off axis labels to improve visualization
+                    if i % 3 == 0 or True:
+                        plt.savefig(f"cats {i}.png", bbox_inches="tight")
+                        plt.pause(1.)
+                    plt.show()
                 #if i % 5 == 0:
                     #out = xp.asnumpy(self.generate(1).T) 
                     #out = np.concatenate((out, out, out), axis=-1)
