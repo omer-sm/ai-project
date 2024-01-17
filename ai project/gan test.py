@@ -1,6 +1,6 @@
 from DL10 import *
 import numpy as np
-import cupy as cp
+#import cupy as cp
 import matplotlib.pyplot as plt
 import matplotlib
 import os, os.path
@@ -8,35 +8,36 @@ from PIL import Image
 from sklearn.datasets import load_digits, fetch_olivetti_faces
 
 np.random.seed(1)
-cp.random.seed(1)
+#cp.random.seed(1)
 
-'''#x = np.array([[-3,9],[-1.5, 2.25], [3, 9], [4,40], [5,50], [6,60]]).T
-x = np.arange(-1600,1600, 10).reshape(1,320)
-x = np.concatenate((x, x**2+20), axis=0)
+#x = np.array([[-3,9],[-1.5, 2.25], [3, 9], [4,40], [5,50], [6,60]]).T
+x = np.arange(-30,30, 5).reshape(1,12)
+x = np.concatenate((x, x**2+1), axis=0)
 
 gen = DLModel()
-gen.add(DLLayer("", 32, (16,), "leaky_relu", "He", 0.0005, "rmsprop"))
-gen.add(DLLayer("", 64, (32,), "leaky_relu", "He", 0.0005, "rmsprop"))
-gen.add(DLLayer("", 64, (64,), "leaky_relu", "He", 0.0005, "rmsprop"))
-gen.add(DLLayer("", 64, (64,), "leaky_relu", "He", 0.0005, "rmsprop"))
-gen.add(DLLayer("", 64, (64,), "leaky_relu", "He", 0.0005, "rmsprop"))
-gen.add(DLLayer("", 2, (64,), "leaky_relu", "Xavier", 0.0005, "rmsprop"))
-gen.compile("squared_means")
+gen.add(DLLayer("", 256, (2,), "leaky_relu", "He", 6e-4, "rmsprop"))
+gen.add(DLLayer("", 16, (256,), "vae_bottleneck", "He", 6e-4, "rmsprop", samples_per_dim=4))
+gen.add(DLLayer("", 64, (32,), "leaky_relu", "He", 6e-4, "rmsprop"))
+l = DLLayer("", 2, (64,), "leaky_relu", "Xavier", 6e-4, "rmsprop")
+l.leaky_relu_d = 1.
+gen.layers[1].leaky_relu_d = 1.
+gen.add(l)
+gen.compile("squared_means_KLD")
 discrim = DLModel()
-discrim.add(DLLayer("", 8, (2,), "leaky_relu", "Xavier", 0.0005))
-discrim.add(DLLayer("", 16, (8,), "leaky_relu", "Xavier", 0.0005))
-discrim.add(DLLayer("", 2, (16,), "leaky_relu", "Xavier", 0.0005))
-discrim.add(DLLayer("", 1, (2,), "leaky_relu", "Xavier", 0.01))
+discrim.add(DLLayer("", 8, (2,), "leaky_relu", "Xavier", 6e-4, "rmsprop"))
+discrim.add(DLLayer("", 16, (8,), "leaky_relu", "Xavier", 6e-4, "rmsprop"))
+discrim.add(DLLayer("", 32, (16,), "leaky_relu", "Xavier", 6e-4, "rmsprop"))
+discrim.add(DLLayer("", 1, (32,), "trim_sigmoid", "Xavier", 6e-4, "rmsprop"))
 discrim.compile("squared_means")
-gan = DLGANModel("", gen, discrim)
+gan = DLVAEGANModel("", gen, discrim)
 gan.compile()
-gan.train(x, 5000, 3, 5)
+gan.train(x, 5000, 1, 5, 3)
 plt.plot(x[0], x[1])
-y = gan.generate(32)
+y = gan.generate(100)
 plt.scatter(y[0], y[1])
 plt.show()
 print(gan.generate(5))
-exit()'''
+exit()
 digits = fetch_olivetti_faces()
 digits = np.array(digits["data"])[:200].T
 #digits = digits.reshape(1,64,1797)
