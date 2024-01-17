@@ -1016,14 +1016,14 @@ class DLGANModel:
 
     def generator_wasserstein_loss_forward(self, Gz, m):
         D_Gz = self.discriminator.forward_propagation(Gz)
-        return -xp.sum(D_Gz)/m
+        return xp.sum(D_Gz)/m
 
     def generator_wasserstein_loss_backward(self, D_Gz):
-        return xp.ones(D_Gz.shape)
+        return -xp.ones(D_Gz.shape)
 
     def discriminator_wasserstein_loss_forward(self, AL, Y, m):
-        a = xp.where(Y == 1, AL, 0)
-        b = xp.where(Y == -1, AL, 0)
+        a = xp.where(Y == -1, AL, 0)
+        b = xp.where(Y == 1, AL, 0)
         print(f"avg real score {xp.mean(a)} avg fake score {xp.mean(b)}")
         return xp.sum(AL*Y)/m
 
@@ -1084,8 +1084,8 @@ class DLGANModel:
         m = X_real.shape[-1]
         Gz = self.generate(m)
         X = xp.concatenate((X_real, Gz), axis=-1)
-        Y_real = xp.ones((1,m))
-        Y_fake = -xp.ones((1,m))
+        Y_real = -xp.ones((1,m))
+        Y_fake = xp.ones((1,m))
         Y = xp.concatenate((Y_real, Y_fake), axis=-1)
         L = len(self.discriminator.layers)
         if mini_batch_size == 0:
@@ -1143,4 +1143,8 @@ class DLGANModel:
                 total_discriminator_costs.append(discriminator_costs[-1])
                 total_generator_costs.append(generator_costs[-1])
                 print(f"GAN: iteration: {i}, costs:\n\tdiscriminator: {discriminator_costs[-1]}\n\tgenerator: {generator_costs[-1]}")
+                #if i % 5 == 0:
+                    #out = xp.asnumpy(self.generate(1).T) 
+                    #out = np.concatenate((out, out, out), axis=-1)
+                    #plt.imsave(f"gen {i}.png", out[0].reshape(64,64,3), cmap="gray")
         return total_discriminator_costs, total_generator_costs
