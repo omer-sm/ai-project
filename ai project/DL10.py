@@ -992,6 +992,8 @@ class DLGANModel:
         if loss not in ["minimax", "wasserstein"]:
             raise Exception(f"invalid value: loss must be either 'minimax' or 'wasserstein'. (is currently {loss})")
         self.loss = loss
+        self.avg_fake_score = 0
+        self.avg_real_score = 0
         self.train_discriminator = self.train_non_minimax_discriminator
         if loss == "wasserstein":
             self.generator_loss_forward = self.generator_wasserstein_loss_forward
@@ -1024,7 +1026,8 @@ class DLGANModel:
     def discriminator_wasserstein_loss_forward(self, AL, Y, m):
         a = xp.where(Y == -1, AL, 0)
         b = xp.where(Y == 1, AL, 0)
-        print(f"avg real score {xp.mean(a)} avg fake score {xp.mean(b)}")
+        self.avg_real_score = xp.mean(a)
+        self.avg_fake_score = xp.mean(b)
         return xp.sum(AL*Y)/m
 
     def discriminator_wasserstein_loss_backward(self, AL, Y):
@@ -1032,7 +1035,7 @@ class DLGANModel:
 
     def _generate_noise(self, m):
         n = self.generator.layers[1].input_shape[0]
-        return xp.random.normal(0, xp.sqrt(2/n), (*self.generator.layers[1].input_shape, m))
+        return xp.random.normal(0, 160, (*self.generator.layers[1].input_shape, m))
 
     def generate(self, m=1):
         noise = self._generate_noise(m)
@@ -1049,11 +1052,10 @@ class DLGANModel:
         costs = []
         for i in range(num_epochs):
             Ji = 0
-            mini_batches = [0]#self.generator.random_mini_batches(X, Y, mini_batch_size, i)
+            mini_batches = self.generator.random_mini_batches(X, Y, mini_batch_size, i)
             for k in range(len(mini_batches)):
                 #forward propagation
-                #Al = mini_batches[k][0]
-                Al = X
+                Al = mini_batches[k][0]
                 #Yk = mini_batches[k][1]
                 for l in range(1, L):
                     Al = self.generator.layers[l].forward_propagation(Al, True)
@@ -1093,11 +1095,11 @@ class DLGANModel:
         costs = []
         for i in range(num_epochs):
             Ji = 0
-            mini_batches = [0]#self.discriminator.random_mini_batches(X, Y, mini_batch_size, i)
+            mini_batches = self.discriminator.random_mini_batches(X, Y, mini_batch_size, i)
             for k in range(len(mini_batches)):
                 #forward propagation
-                Al = X#mini_batches[k][0]
-                Yk = Y#mini_batches[k][1]
+                Al = mini_batches[k][0]
+                Yk = mini_batches[k][1]
                 #print(Yk)
                 #print(Al)
                 for l in range(1, L):
@@ -1119,7 +1121,7 @@ class DLGANModel:
         return costs
 
     def report_discriminator_train_stats(self, i, Ji):
-        return f"Discriminator: iteration: {i}, cost: {Ji}"
+        return f"Discriminator: iteration: {i}, cost: {Ji}\naverage real score: {self.avg_real_score}, average fake score: {self.avg_fake_score}"
 
     def train_minimax_discriminator(self, X, num_epochs, mini_batch_size=0):
         m = X.shape[-1]
@@ -1139,6 +1141,96 @@ class DLGANModel:
         for i in range(num_epochs):
             discriminator_costs = self.train_discriminator(X, discrim_epochs, mini_batch_size)
             generator_costs = self.train_generator(gen_epochs, m, mini_batch_size)
+            if i % print_ind == 0:
+                total_discriminator_costs.append(discriminator_costs[-1])
+                total_generator_costs.append(generator_costs[-1])
+                print(f"GAN: iteration: {i}, costs:\n\tdiscriminator: {discriminator_costs[-1]}\n\tgenerator: {generator_costs[-1]}")
+                #if i % 5 == 0:
+                    #out = xp.asnumpy(self.generate(1).T) 
+                    #out = np.concatenate((out, out, out), axis=-1)
+                    #plt.imsave(f"gen {i}.png", out[0].reshape(64,64,3), cmap="gray")
+        return total_discriminator_costs, total_generator_costs
+
+class DLVAEGANModel(DLGANModel):
+
+    def __init__(self, name, generator, discriminator):
+        super().__init__(name, generator, discriminator)
+
+    def __str__(self):
+        s = f"{self.name} VAE-GAN model description:"
+        s += f"\tgenerator: {self.generator}"
+        s += f"\tdiscriminator: {self.discriminator}"
+        return s
+
+    def generate(self, m):
+        vae_layer = self.generator.bottleneck_layer
+        n = self.generator.layers[vae_layer]._num_units
+        out = xp.random.normal(0., 5., (n, m))
+        out = self.generator.layers[vae_layer].activation_forward(out)
+        for l in range(vae_layer+1, len(self.generator.layers)):
+            out = self.generator.layers[l].forward_propagation(out, False)
+        return out
+
+    def compile(self, loss='wasserstein', gan_loss_weight=1.):
+        super().compile(loss=loss)
+        self.gan_loss_weight = gan_loss_weight
+
+    def generator_minimax_loss_forward(self, Gz, x, m=0):
+        vae_loss = xp.sum(self.generator.loss_forward(Gz, x))/m
+        gan_loss = super().generator_loss_forward(Gz, m) * self.gan_loss_weight
+        return vae_loss + gan_loss
+
+    def generator_wasserstein_loss_forward(self, Gz, x, m=0):
+        vae_loss = xp.sum(self.generator.loss_forward(Gz, x))/m
+        gan_loss = super().generator_wasserstein_loss_forward(Gz, m) * self.gan_loss_weight 
+        return vae_loss + gan_loss
+
+    def generator_vae_loss_backward(self, Gz, x):
+        return self.generator.loss_backward(Gz, x)
+
+    def train_generator(self, X, Y, num_epochs, m, mini_batch_size=0):
+        print_ind = max(num_epochs // 1, 1)
+        L = len(self.generator.layers)
+        if mini_batch_size == 0:
+            mini_batch_size = m
+        costs = []
+        for i in range(num_epochs):
+            Ji = 0
+            mini_batches = self.generator.random_mini_batches(X, Y, mini_batch_size, i)
+            for k in range(len(mini_batches)):
+                #forward propagation
+                Al = mini_batches[k][0]
+                Yk = mini_batches[k][1]
+                for l in range(1, L):
+                    Al = self.generator.layers[l].forward_propagation(Al, True)
+                #backward propagation
+                D_Gz = self.discriminator.forward_propagation(Al)
+                #print(xp.mean(D_Gz))
+                dAl = self.generator_loss_backward(D_Gz)
+                #print(dAl)
+                for l in reversed(range(1, len(self.discriminator.layers))):
+                    dAl = self.discriminator.layers[l].backward_propagation(dAl)
+                #print(dAl)
+                dAl += self.generator_vae_loss_backward(Al, Yk)
+                for l in reversed(range(1, L)):
+                    dAl = self.generator.layers[l].backward_propagation(dAl)
+                    #update parameters
+                    self.generator.layers[l].update_parameters(i+1)
+                Ji += self.generator_loss_forward(Al, Yk, m)
+            #record progress
+            if i >= 0 and i % print_ind == 0:
+                costs.append(Ji)
+                print(self.report_generator_train_stats(i,Ji))
+        return costs
+
+    def train(self, X, num_epochs, gen_epochs=5, discrim_epochs=3, mini_batch_size=0):
+        print_ind = max(num_epochs // 20, 1)
+        m = X.shape[-1]
+        total_discriminator_costs = []
+        total_generator_costs = []
+        for i in range(num_epochs):
+            discriminator_costs = self.train_discriminator(X, discrim_epochs, mini_batch_size)
+            generator_costs = self.train_generator(X, X, gen_epochs, m, mini_batch_size)
             if i % print_ind == 0:
                 total_discriminator_costs.append(discriminator_costs[-1])
                 total_generator_costs.append(generator_costs[-1])
